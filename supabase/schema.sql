@@ -1,4 +1,4 @@
--- Pedalz Supabase schema. Run once in Supabase → SQL Editor.
+-- Pedalz Supabase schema. Run in Supabase → SQL Editor (safe to re-run; can share a project with WAYOF and Kayaos).
 create extension if not exists pgcrypto;
 
 create table if not exists public.profiles (
@@ -50,33 +50,36 @@ create or replace function public.my_group() returns text language sql stable se
 $$ select grp from public.profiles where id = auth.uid() $$;
 
 -- profiles: public read (no email stored here), owner write
-create policy "profiles read" on public.profiles for select using (true);
-create policy "profiles insert own" on public.profiles for insert with check (auth.uid() = id);
-create policy "profiles update own" on public.profiles for update using (auth.uid() = id);
+drop policy if exists "profiles read" on public.profiles; create policy "profiles read" on public.profiles for select using (true);
+drop policy if exists "profiles insert own" on public.profiles; create policy "profiles insert own" on public.profiles for insert with check (auth.uid() = id);
+drop policy if exists "profiles update own" on public.profiles; create policy "profiles update own" on public.profiles for update using (auth.uid() = id);
 
 -- rides: private to the owner
-create policy "rides own" on public.rides for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+drop policy if exists "rides own" on public.rides; create policy "rides own" on public.rides for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
 -- live locations: visible if public, or same group (precise), or your own row. 'off' is never stored.
-create policy "live read" on public.live_locations for select using (
+drop policy if exists "live read" on public.live_locations; create policy "live read" on public.live_locations for select using (
   auth.uid() = user_id or vis = 'public' or (vis in ('group','friends') and grp is not null and grp = public.my_group()));
-create policy "live write own" on public.live_locations for insert with check (auth.uid() = user_id);
-create policy "live update own" on public.live_locations for update using (auth.uid() = user_id);
-create policy "live delete own" on public.live_locations for delete using (auth.uid() = user_id);
+drop policy if exists "live write own" on public.live_locations; create policy "live write own" on public.live_locations for insert with check (auth.uid() = user_id);
+drop policy if exists "live update own" on public.live_locations; create policy "live update own" on public.live_locations for update using (auth.uid() = user_id);
+drop policy if exists "live delete own" on public.live_locations; create policy "live delete own" on public.live_locations for delete using (auth.uid() = user_id);
 
 -- listings & causes: public ones readable by all signed-in or anonymous users; group ones only by that group
-create policy "listings read" on public.listings for select using (scope = 'public' or auth.uid() = user_id or (scope = 'group' and grp = public.my_group()));
-create policy "listings write own" on public.listings for insert with check (auth.uid() = user_id);
-create policy "listings delete own" on public.listings for delete using (auth.uid() = user_id);
-create policy "causes read" on public.causes for select using (scope = 'public' or auth.uid() = user_id or (scope = 'group' and grp = public.my_group()));
-create policy "causes write own" on public.causes for insert with check (auth.uid() = user_id);
-create policy "causes delete own" on public.causes for delete using (auth.uid() = user_id);
-create policy "members read" on public.cause_members for select using (true);
-create policy "members join" on public.cause_members for insert with check (auth.uid() = user_id);
-create policy "members leave" on public.cause_members for delete using (auth.uid() = user_id);
+drop policy if exists "listings read" on public.listings; create policy "listings read" on public.listings for select using (scope = 'public' or auth.uid() = user_id or (scope = 'group' and grp = public.my_group()));
+drop policy if exists "listings write own" on public.listings; create policy "listings write own" on public.listings for insert with check (auth.uid() = user_id);
+drop policy if exists "listings delete own" on public.listings; create policy "listings delete own" on public.listings for delete using (auth.uid() = user_id);
+drop policy if exists "causes read" on public.causes; create policy "causes read" on public.causes for select using (scope = 'public' or auth.uid() = user_id or (scope = 'group' and grp = public.my_group()));
+drop policy if exists "causes write own" on public.causes; create policy "causes write own" on public.causes for insert with check (auth.uid() = user_id);
+drop policy if exists "causes delete own" on public.causes; create policy "causes delete own" on public.causes for delete using (auth.uid() = user_id);
+drop policy if exists "members read" on public.cause_members; create policy "members read" on public.cause_members for select using (true);
+drop policy if exists "members join" on public.cause_members; create policy "members join" on public.cause_members for insert with check (auth.uid() = user_id);
+drop policy if exists "members leave" on public.cause_members; create policy "members leave" on public.cause_members for delete using (auth.uid() = user_id);
 
 -- realtime for the live map
-alter publication supabase_realtime add table public.live_locations;
+do $$ begin
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'live_locations')
+  then alter publication supabase_realtime add table public.live_locations; end if;
+end $$;
 
 -- housekeeping: call from a scheduled job (pg_cron) to drop stale locations
 -- delete from public.live_locations where updated_at < now() - interval '1 hour';
