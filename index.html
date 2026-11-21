@@ -1,0 +1,998 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<title>Pedalz • Ride. Connect. Share.</title>
+<meta name="description" content="Pedalz: track rides, meet riders nearby, join cause rides and trade gear."/>
+<meta name="theme-color" content="#0c1724"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-title" content="Pedalz"/>
+<link rel="manifest" href="manifest.json"/>
+<link rel="icon" type="image/png" href="assets/pedalz-icon-192.png"/>
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js" defer></script>
+<script src="config.js"></script>
+<style>
+:root{--ink:#0b3054;--bg:#0c1724;--ring:#38bdf8;--pill:#28b073;--pillStop:#ef4444;--panel:rgba(10,22,36,.95);--line:rgba(255,255,255,.14);--soft:rgba(255,255,255,.07);--grad:linear-gradient(135deg,#0369a1,#0ea5e9 55%,#38bdf8);--male:#38bdf8;--female:#ec4899;--neutral:#16a34a;--sat:env(safe-area-inset-top,0px);--sab:env(safe-area-inset-bottom,0px)}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:var(--bg);color:#fff;font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Inter,sans-serif;overscroll-behavior:none;-webkit-tap-highlight-color:transparent}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;border:0;background:none}
+.hidden{display:none!important}
+.row{display:flex;align-items:center;gap:.5rem}.between{justify-content:space-between}.wrap{flex-wrap:wrap}.grow{flex:1;min-width:0}
+.muted{color:#9fb3c8}.xs{font-size:.75rem}.sm{font-size:.875rem}.lg{font-size:1.15rem}.xl{font-size:1.4rem}.b{font-weight:800}
+.mt1{margin-top:.5rem}.mt2{margin-top:1rem}.mb1{margin-bottom:.5rem}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:.6rem}.grid3{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:.6rem}.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:.5rem;text-align:center}
+.box{background:var(--soft);border:1px solid var(--line);border-radius:.8rem;padding:.7rem}
+.in{width:100%;padding:.6rem .7rem;border-radius:.6rem;background:rgba(255,255,255,.09);border:1px solid var(--line);outline:none}
+.in:focus{border-color:var(--ring)}select.in option{color:#000}
+.btn{padding:.55rem .9rem;border-radius:.7rem;background:#fff;color:var(--ink);font-weight:800}
+.btn.alt{background:rgba(255,255,255,.14);color:#fff;border:1px solid var(--line)}
+.btn.sm{padding:.3rem .65rem;font-size:.8rem}
+.btn:disabled{opacity:.5}
+.btn.danger{background:#ef4444;color:#fff}
+.chip{display:inline-flex;padding:.25rem .7rem;border-radius:99px;background:rgba(255,255,255,.1);border:1px solid var(--line);font-size:.85rem}
+.chip.on{background:#0ea5e9;color:#062b49;font-weight:800;border-color:#0ea5e9}
+.badge{background:#0ea5e9;color:#062b49;font-weight:800;border-radius:99px;padding:.1rem .5rem;font-size:.7rem}
+.gradtext{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+
+/* splash */
+#splash{position:fixed;inset:0;z-index:5000;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--bg);transition:opacity .5s}
+#splash.fade{opacity:0;pointer-events:none}
+#splash .brandBig{display:flex;align-items:center;font-size:3rem;font-weight:900;letter-spacing:-.02em;opacity:0;transform:scale(.96);transition:all .6s}
+#splash.ready .brandBig{opacity:1;transform:none}
+#splash .tag{margin-top:.8rem;color:#cbe8ff;opacity:0;transition:opacity .6s .3s}#splash.ready .tag{opacity:1}
+
+/* brand */
+.brand{display:flex;align-items:center;font-weight:900;letter-spacing:-.02em;line-height:1}
+.brand svg{height:1.5em;width:1.5em;margin-right:-.12em;overflow:visible}
+.brand .gearG{transform-origin:256px 256px;animation:spin 14s linear infinite}
+body.battery .brand .gearG{animation:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* topbar */
+.topbar{position:fixed;left:0;right:0;top:0;height:calc(58px + var(--sat));padding:var(--sat) .6rem 0;display:flex;align-items:center;justify-content:space-between;z-index:2200;background:linear-gradient(180deg,rgba(12,23,36,.96),rgba(12,23,36,.7));backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+.barbtn{display:flex;align-items:center;gap:.4rem;padding:.45rem .65rem;border-radius:.75rem;background:rgba(255,255,255,.08);border:1px solid var(--line);font-weight:700;font-size:.85rem}
+.topbar .brandWrap{text-align:center}.topbar .brand{font-size:1.45rem;justify-content:center}
+.topbar .tagline{font-size:.62rem;color:#9fd8ff;letter-spacing:.08em;margin-top:2px}
+#offlineBadge{position:fixed;top:calc(64px + var(--sat));left:50%;transform:translateX(-50%);z-index:2150;background:#f59e0b;color:#2b1a00;font-weight:800;font-size:.75rem;padding:.2rem .7rem;border-radius:99px}
+#hrChip{position:fixed;top:calc(64px + var(--sat));left:.6rem;z-index:2150;background:rgba(10,22,36,.85);border:1px solid var(--line);padding:.25rem .6rem;border-radius:99px;font-weight:800}
+#modeChip{position:fixed;top:calc(96px + var(--sat));left:.6rem;z-index:2150;background:rgba(10,22,36,.85);border:1px solid var(--line);padding:.2rem .6rem;border-radius:99px;font-size:.75rem}
+
+/* map */
+#map{position:fixed;left:0;right:0;bottom:0;top:calc(58px + var(--sat))}
+.leaflet-layer{transition:opacity .3s}
+.leaflet-container{background:#10202f}
+.dark-tiles{filter:invert(1) hue-rotate(180deg) brightness(.92) contrast(.92) saturate(.75)}
+.pin{background:none;border:0}
+.avatar-pin{width:34px;height:34px;border-radius:50%;background:#0c1724;border:3px solid;display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 4px 10px rgba(0,0,0,.4)}
+.pin.me .avatar-pin,.pin.me svg{filter:drop-shadow(0 0 6px #22d3ee)}
+
+/* menus */
+.menuPanel{position:absolute;top:calc(100% + 6px);right:0;width:250px;background:var(--panel);backdrop-filter:blur(10px);border:1px solid var(--line);border-radius:.9rem;padding:.4rem;display:none;z-index:2300}
+.menuPanel.show{display:block}
+.menuPanel{max-height:72vh;overflow:auto}
+.menuItem{display:flex;align-items:center;gap:.6rem;padding:.55rem .6rem;border-radius:.6rem;background:var(--soft);margin:.25rem 0;font-weight:700;width:100%;text-align:left}
+.menuItem .st{margin-left:auto;font-size:.72rem;color:#9fd8ff}
+#drawer{position:fixed;inset:0;display:none;z-index:2600}#drawer.show{display:block}
+#drawer .backdrop{position:absolute;inset:0;background:rgba(0,0,0,.5)}
+#drawer .panel{position:absolute;left:0;top:0;bottom:0;width:78vw;max-width:340px;background:rgba(10,20,35,.92);backdrop-filter:blur(12px);border-right:1px solid var(--line);padding:calc(16px + var(--sat)) 16px 16px;overflow:auto;transform:translateX(-100%);transition:transform .22s}
+#drawer.show .panel{transform:none}
+.navItem{display:block;width:100%;text-align:left;font-weight:800;font-size:1.05rem;padding:.75rem .9rem;border-radius:.8rem;background:var(--soft);margin:.28rem 0}
+.xbtn{width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.14);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;flex:none}
+.legendDot{display:inline-flex;align-items:center;gap:.35rem;margin-right:.7rem}.dot{width:10px;height:10px;border-radius:50%}
+
+/* gauges */
+.statsStack{position:fixed;top:calc(70px + var(--sat));right:.5rem;display:flex;flex-direction:column;gap:.55rem;z-index:2100;align-items:flex-end}
+.statsStack.pos-left{right:auto;left:.5rem;top:calc(130px + var(--sat))}
+.statsStack.pos-center{right:0;left:0;top:auto;bottom:calc(14px + var(--sab));flex-direction:row;justify-content:center;align-items:center;flex-wrap:wrap}
+.statCircle{width:76px;height:76px;border-radius:50%;background:rgba(10,22,36,.78);border:1px solid var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;box-shadow:0 10px 24px rgba(0,0,0,.35)}
+.statCircle .val{font-weight:800;font-size:1rem}.statCircle .lbl{font-size:.66rem;opacity:.85}
+.statCircle::before{content:"";position:absolute;inset:-5px;border-radius:50%;border:2px solid var(--ring);opacity:.3;animation:ring 2.2s ease-out infinite}
+body.battery .statCircle::before{animation:none}
+@keyframes ring{0%{transform:scale(.9);opacity:.35}100%{transform:scale(1.14);opacity:0}}
+.statCircle svg.arc{position:absolute;inset:-4px;width:calc(100% + 8px);height:calc(100% + 8px)}
+.statCircle svg.arc circle{transition:stroke-dasharray .6s ease}
+.statCircle .mini{position:absolute;top:4px;right:4px;width:22px;height:22px;display:flex;align-items:center;justify-content:center}
+.pill{background:var(--pill);color:#fff;border-radius:99px;padding:.6rem 1.2rem;font-weight:800;box-shadow:0 8px 22px rgba(0,0,0,.35)}.pill.stop{background:var(--pillStop)}
+.iconCircle{width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.14);border:1px solid var(--line);display:flex;align-items:center;justify-content:center}
+
+/* mini map */
+#miniWrap{position:fixed;right:.6rem;bottom:calc(.6rem + var(--sab));width:150px;height:110px;border-radius:.9rem;overflow:hidden;border:1px solid var(--line);z-index:2050;transition:width .25s,height .25s;background:#10202f}
+#miniWrap.expanded{width:min(60vw,420px);height:min(50vh,360px)}
+#mini{width:100%;height:100%}
+#miniTog{position:absolute;right:4px;top:4px;z-index:900;width:26px;height:26px;border-radius:50%;background:rgba(10,22,36,.8);display:flex;align-items:center;justify-content:center}
+
+/* modals */
+.modalWrap{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.6);backdrop-filter:blur(6px);z-index:2500}
+.modalWrap.show{display:flex}.modalWrap.top{z-index:2900}
+.modalCard{position:relative;width:min(760px,94vw);max-height:90vh;overflow:auto;border-radius:18px;background:var(--panel);border:1px solid var(--line);padding:16px 16px 22px;animation:pop .2s ease}
+@keyframes pop{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:none}}
+.modalClose{position:sticky;top:0;float:right;margin:-4px -4px 0 8px;z-index:5}
+.modalCard h3{margin:.1rem 2.8rem .8rem 0;font-size:1.3rem}
+.bottomDrawer{position:fixed;left:0;right:0;bottom:-80vh;height:66vh;background:rgba(10,22,36,.97);border-top:1px solid var(--line);border-radius:14px 14px 0 0;z-index:2500;transition:bottom .25s;padding:12px 14px;overflow:auto}
+.bottomDrawer.show{bottom:0}
+#routeMap{height:30vh;border-radius:.8rem;overflow:hidden}
+.listRow{display:flex;align-items:center;gap:.7rem;padding:.55rem;border-radius:.8rem;background:var(--soft);margin:.35rem 0}
+.avatar{width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;border:3px solid var(--neutral);flex:none}
+.avatar svg{width:34px;height:34px}
+.gal{display:flex;gap:.5rem;overflow-x:auto;padding-bottom:.3rem}
+.gal .th{position:relative;flex:none;width:130px;height:96px;border-radius:.6rem;overflow:hidden;background:#000}
+.gal .th img,.gal .th video{width:100%;height:100%;object-fit:cover}
+.gal .th .tg{position:absolute;right:4px;bottom:4px;font-size:.65rem;background:rgba(0,0,0,.7);padding:1px 5px;border-radius:4px}
+.gal .th .del{position:absolute;left:3px;top:3px;font-size:.7rem;background:rgba(0,0,0,.7);padding:0 6px;border-radius:99px}
+.item{background:var(--soft);border-radius:.8rem;overflow:hidden;border:1px solid var(--line);position:relative}
+.item img{width:100%;height:100px;object-fit:cover;display:block;background:#10202f}
+.item .ph{height:100px;display:flex;align-items:center;justify-content:center;font-size:2rem;background:#10202f}
+.item .bd{padding:.5rem .6rem}.item .sc{position:absolute;left:6px;top:6px;font-size:.62rem;background:rgba(0,0,0,.65);padding:1px 6px;border-radius:99px}
+.rating svg{width:14px;height:14px;fill:#ffd166;vertical-align:-2px}
+details.box>summary{font-weight:800;cursor:pointer}
+.toasts{position:fixed;left:12px;right:12px;bottom:calc(130px + var(--sab));z-index:6000;display:flex;flex-direction:column;align-items:flex-start;gap:8px;pointer-events:none}
+.toast{background:rgba(15,30,48,.95);border:1px solid var(--line);padding:9px 12px;border-radius:10px;box-shadow:0 8px 18px rgba(0,0,0,.3);font-size:.9rem;transition:opacity .4s}
+
+/* fullscreen camera / playback */
+.full{position:fixed;inset:0;z-index:4000;background:#000;display:flex;align-items:center;justify-content:center}
+.full video,.full img.fimg{width:100%;height:100%;object-fit:contain;background:#000}
+#camVid{object-fit:cover}
+.gaugeBar{position:absolute;display:flex;gap:.5rem;z-index:5;pointer-events:none;top:calc(12px + var(--sat));right:12px;flex-direction:column;align-items:flex-end}
+.gaugeBar.pos-left{right:auto;left:12px;align-items:flex-start}
+.gaugeBar.pos-center{right:0;left:0;top:auto;bottom:calc(110px + var(--sab));flex-direction:row;justify-content:center}
+.gaugeBar .g{min-width:74px;text-align:center;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.25);border-radius:14px;padding:.35rem .55rem;backdrop-filter:blur(4px)}
+.gaugeBar .g b{display:block;font-size:1.15rem}.gaugeBar .g span{font-size:.62rem;opacity:.85}
+.camCtl{position:absolute;bottom:calc(20px + var(--sab));left:0;right:0;display:flex;justify-content:center;gap:.7rem;align-items:center;z-index:6}
+.camTop{position:absolute;top:calc(12px + var(--sat));left:12px;z-index:6;display:flex;gap:.5rem;align-items:center}
+#camMini{position:absolute;left:12px;bottom:calc(20px + var(--sab));width:130px;height:100px;border-radius:.8rem;overflow:hidden;border:1px solid rgba(255,255,255,.3);z-index:5}
+.recdot{width:12px;height:12px;border-radius:50%;background:#ef4444;animation:blink 1s infinite}
+@keyframes blink{50%{opacity:.2}}
+.livetag{background:#ef4444;font-weight:900;font-size:.75rem;padding:.15rem .5rem;border-radius:6px}
+
+/* lock */
+#lock{position:fixed;inset:0;z-index:5500;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem}
+.pinDots{display:flex;gap:.7rem}.pinDots i{width:14px;height:14px;border-radius:50%;border:2px solid #fff}.pinDots i.f{background:#fff}
+.keypad{display:grid;grid-template-columns:repeat(3,70px);gap:.7rem}.keypad button{height:62px;border-radius:50%;background:rgba(255,255,255,.1);font-size:1.4rem;font-weight:700}
+#installBanner{position:fixed;left:10px;right:10px;bottom:calc(10px + var(--sab));z-index:3000;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:.7rem;display:flex;align-items:center;gap:.7rem}
+
+.dash{z-index:2450;background:#07111c;flex-direction:column;align-items:stretch;justify-content:space-between;padding:calc(12px + var(--sat)) 14px calc(14px + var(--sab));gap:.6rem}
+.dashTop{display:flex;gap:.5rem;align-items:center}
+.dashSpeed{position:relative;flex:1;display:flex;align-items:center;justify-content:center;min-height:0}
+.dashSpeed svg{height:100%;max-height:46vh;aspect-ratio:1}
+.dashSpeed svg circle{transition:stroke-dasharray .6s ease}
+.dashSpeed .dsv{position:absolute;text-align:center}
+.dsv b{display:block;font-size:min(22vw,22vh);line-height:1}.dsv span{color:#9fd8ff;font-size:1rem}
+.dashGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem}
+.dashGrid .g{background:var(--soft);border:1px solid var(--line);border-radius:14px;padding:.5rem;text-align:center}
+.dashGrid .g b{display:block;font-size:min(9vw,6vh)}.dashGrid .g span{font-size:.7rem;color:#9fb3c8}
+.dashTop{flex-wrap:wrap}
+.seg{display:flex;gap:.3rem;margin-left:auto}
+.seg button{padding:.3rem .65rem;border-radius:99px;background:rgba(255,255,255,.1);border:1px solid var(--line);font-size:.8rem}
+.seg button.on{background:#0ea5e9;color:#062b49;font-weight:800;border-color:#0ea5e9}
+.dashBottom{display:flex;gap:.7rem;align-items:flex-end}
+/* layout 2: circular gauges stacked vertically in the centre, map minimized */
+.dash.lay-stack .dashSpeed{flex:none;height:min(25vh,52vw);width:min(25vh,52vw);margin:0 auto}
+.dash.lay-stack .dsv b{font-size:min(10vw,7vh)}
+.dash.lay-stack .dashGrid{grid-template-columns:1fr;justify-items:center;gap:.5rem;flex:1;align-content:space-evenly}
+.dash.lay-stack .dashGrid .g{width:min(15vh,34vw);height:min(15vh,34vw);border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;border:2px solid #0ea5e9;padding:0}
+.dash.lay-stack .dashGrid .g b{font-size:min(6.5vw,3.6vh)}
+.dash.lay-stack #dashMap{flex:0 0 36%;height:14vh;min-height:90px}
+/* layout 3: four corner gauges, map centered (fills the view behind them) */
+.dash.lay-corners .dashSpeed{position:absolute;z-index:3;top:calc(112px + var(--sat));left:10px;width:min(38vw,170px);height:min(38vw,170px);flex:none;background:rgba(7,17,28,.8);border-radius:50%}
+.dash.lay-corners .dsv b{font-size:min(9vw,2.2rem)}.dash.lay-corners .dsv span{font-size:.7rem}
+.dash.lay-corners .dashGrid{display:contents}
+.dash.lay-corners .dashGrid .g{position:absolute;z-index:3;width:min(38vw,170px);height:min(38vw,170px);border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0;border:3px solid #0ea5e9;background:rgba(7,17,28,.8);backdrop-filter:blur(4px)}
+.dash.lay-corners .dashGrid .g b{font-size:min(8vw,2rem)}
+.dash.lay-corners .dashGrid .g:nth-child(1){top:calc(112px + var(--sat));right:10px}
+.dash.lay-corners .dashGrid .g:nth-child(2){bottom:calc(84px + var(--sab));left:10px}
+.dash.lay-corners .dashGrid .g:nth-child(3){bottom:calc(84px + var(--sab));right:10px}
+/* !important: Leaflet writes an inline position:relative on its container, which would otherwise collapse the map to 0 height here */
+.dash.lay-corners #dashMap{position:fixed!important;inset:0!important;width:auto!important;height:auto!important;z-index:0;min-height:0;border:0;border-radius:0;flex:none;pointer-events:auto}
+.dash.lay-corners .dashBottom{position:absolute;left:0;right:0;bottom:calc(14px + var(--sab));justify-content:center;pointer-events:none}
+.dash.lay-corners #dashStart{position:relative;z-index:4;pointer-events:auto}
+.dash.lay-corners .dashTop{position:relative;z-index:4}
+#dashMap{flex:1;height:26vh;min-height:110px;border-radius:14px;overflow:hidden;border:1px solid var(--line)}
+.trainer{position:absolute;z-index:7;right:10px;bottom:calc(92px + var(--sab));width:min(72vw,290px);background:rgba(7,17,28,.94);border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:0 12px 30px rgba(0,0,0,.55);touch-action:none}
+.trainer.big{inset:0!important;width:auto!important;border-radius:0;display:flex;flex-direction:column;z-index:9}
+.trHead{display:flex;justify-content:space-between;align-items:center;gap:.3rem;padding:.35rem .4rem;cursor:grab;position:relative;z-index:6}
+.trHead .seg{margin-left:0}.trHead .seg button{padding:.2rem .45rem;font-size:.72rem;white-space:nowrap}.trHead .seg{gap:.2rem}
+.grip{cursor:grab;touch-action:none;padding:0 .35rem;color:#9fb3c8;font-size:1.1rem;user-select:none}.trainer.big .grip{display:none}
+.trBtn{width:28px;height:28px;flex:none;border-radius:50%;background:rgba(255,255,255,.12);font-size:.85rem}
+.trBody{position:relative;display:flex;flex-direction:column;flex:1;min-height:0}
+#trAI{position:relative;aspect-ratio:16/9;background:#06111c}.trainer.big #trAI{aspect-ratio:auto;flex:1}
+#trCanvas{width:100%;height:100%;display:block;object-fit:cover}
+.trTag{position:absolute;left:6px;top:6px;font-size:.6rem;background:rgba(14,165,233,.9);color:#062b49;font-weight:800;border-radius:6px;padding:1px 6px}
+.trCue{position:absolute;left:6px;right:6px;bottom:6px;display:flex;gap:.4rem;align-items:center;background:rgba(0,0,0,.62);border:1px solid rgba(255,255,255,.18);border-radius:10px;padding:.3rem .5rem;font-size:.78rem;line-height:1.25}
+.trCue .av{font-size:1.2rem}.trainer.big .trCue{font-size:1.05rem;left:12px;right:12px;bottom:calc(16px + var(--sab));padding:.6rem .8rem}
+#trLive{display:flex;flex-direction:column;flex:1;gap:.4rem;padding:.4rem}
+#trFrame{aspect-ratio:16/9;background:#000;border-radius:8px;overflow:hidden;display:flex;align-items:center;justify-content:center;color:#9fb3c8;font-size:.8rem;text-align:center;padding:.3rem}
+.trainer.big #trFrame{aspect-ratio:auto;flex:1}#trFrame iframe{width:100%;height:100%;border:0}
+#trForm input{padding:.4rem .5rem;font-size:.8rem}
+.trainer.big #tGauges{top:62px}
+@media(min-width:640px){.statCircle{width:86px;height:86px}}
+@media(max-width:380px){.topbar .tagline{display:none}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<!-- Splash -->
+<div id="splash">
+  <div class="brandBig brand">
+    <svg viewBox="0 0 512 512"><defs><linearGradient id="gS" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0369a1"/><stop offset=".55" stop-color="#0ea5e9"/><stop offset="1" stop-color="#38bdf8"/></linearGradient></defs>
+      <g class="gearG"><path d="M259.9,70.0 L268.3,42.4 L288.4,44.5 L290.9,73.3 L307.9,77.4 L323.2,52.8 L342.0,60.0 L337.0,88.5 L352.4,96.9 L373.5,77.1 L389.8,89.0 L377.5,115.2 L390.2,127.3 L415.8,113.6 L428.5,129.3 L409.8,151.5 L419.0,166.4 L447.2,159.8 L455.4,178.3 L431.7,194.8 L436.6,211.6 L465.6,212.6 L468.7,232.5 L441.5,242.4 L442.0,259.9 L469.6,268.3 L467.5,288.4 L438.7,290.9 L434.6,307.9 L459.2,323.2 L452.0,342.0 L423.5,337.0 L415.1,352.4 L434.9,373.5 L423.0,389.8 L396.8,377.5 L384.7,390.2 L398.4,415.8 L382.7,428.5 L360.5,409.8 L345.6,419.0 L352.2,447.2 L333.7,455.4 L317.2,431.7 L300.4,436.6 L299.4,465.6 L279.5,468.7 L269.6,441.5 L252.1,442.0 L243.7,469.6 L223.6,467.5 L221.1,438.7 L204.1,434.6 L188.8,459.2 L170.0,452.0 L175.0,423.5 L159.6,415.1 L138.5,434.9 L122.2,423.0 L134.5,396.8 L121.8,384.7 L96.2,398.4 L83.5,382.7 L102.2,360.5 L93.0,345.6 L64.8,352.2 L56.6,333.7 L80.3,317.2 L75.4,300.4 L46.4,299.4 L43.3,279.5 L70.5,269.6 L70.0,252.1 L42.4,243.7 L44.5,223.6 L73.3,221.1 L77.4,204.1 L52.8,188.8 L60.0,170.0 L88.5,175.0 L96.9,159.6 L77.1,138.5 L89.0,122.2 L115.2,134.5 L127.3,121.8 L113.6,96.2 L129.3,83.5 L151.5,102.2 L166.4,93.0 L159.8,64.8 L178.3,56.6 L194.8,80.3 L211.6,75.4 L212.6,46.4 L232.5,43.3 L242.4,70.5Z" fill="url(#gS)" fill-rule="evenodd"/><circle cx="256" cy="256" r="150" fill="#0c1724"/></g>
+      <rect x="236" y="106" width="40" height="150" fill="url(#gS)"/><circle cx="256" cy="256" r="34" fill="url(#gS)"/><circle cx="256" cy="256" r="14" fill="#7dd3fc"/>
+      <path d="M240 270 L150 440 L192 458 L284 290Z" fill="url(#gS)"/><rect x="118" y="428" width="96" height="46" rx="12" transform="rotate(-14 166 451)" fill="#0369a1"/></svg>
+    <span class="gradtext">edalz</span>
+  </div>
+  <div class="tag">Ride. Connect. Share.</div>
+</div>
+
+<!-- PIN lock -->
+<div id="lock" class="hidden">
+  <div class="brand xl"><span class="gradtext">Pedalz</span></div>
+  <div class="muted sm" id="lockMsg">Enter your 4-digit PIN</div>
+  <div class="pinDots" id="pinDots"><i></i><i></i><i></i><i></i></div>
+  <div class="keypad" id="keypad"></div>
+  <button class="btn alt sm" id="bioBtn">Use biometrics</button>
+</div>
+
+<!-- Topbar -->
+<div class="topbar">
+  <button id="btnLeftMenu" class="barbtn" aria-label="Open menu"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>Menu</button>
+  <div class="brandWrap">
+    <div class="brand">
+      <svg viewBox="0 0 512 512" aria-hidden="true"><defs><linearGradient id="gH" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0369a1"/><stop offset=".55" stop-color="#0ea5e9"/><stop offset="1" stop-color="#38bdf8"/></linearGradient></defs>
+        <g class="gearG"><path d="M259.9,70.0 L268.3,42.4 L288.4,44.5 L290.9,73.3 L307.9,77.4 L323.2,52.8 L342.0,60.0 L337.0,88.5 L352.4,96.9 L373.5,77.1 L389.8,89.0 L377.5,115.2 L390.2,127.3 L415.8,113.6 L428.5,129.3 L409.8,151.5 L419.0,166.4 L447.2,159.8 L455.4,178.3 L431.7,194.8 L436.6,211.6 L465.6,212.6 L468.7,232.5 L441.5,242.4 L442.0,259.9 L469.6,268.3 L467.5,288.4 L438.7,290.9 L434.6,307.9 L459.2,323.2 L452.0,342.0 L423.5,337.0 L415.1,352.4 L434.9,373.5 L423.0,389.8 L396.8,377.5 L384.7,390.2 L398.4,415.8 L382.7,428.5 L360.5,409.8 L345.6,419.0 L352.2,447.2 L333.7,455.4 L317.2,431.7 L300.4,436.6 L299.4,465.6 L279.5,468.7 L269.6,441.5 L252.1,442.0 L243.7,469.6 L223.6,467.5 L221.1,438.7 L204.1,434.6 L188.8,459.2 L170.0,452.0 L175.0,423.5 L159.6,415.1 L138.5,434.9 L122.2,423.0 L134.5,396.8 L121.8,384.7 L96.2,398.4 L83.5,382.7 L102.2,360.5 L93.0,345.6 L64.8,352.2 L56.6,333.7 L80.3,317.2 L75.4,300.4 L46.4,299.4 L43.3,279.5 L70.5,269.6 L70.0,252.1 L42.4,243.7 L44.5,223.6 L73.3,221.1 L77.4,204.1 L52.8,188.8 L60.0,170.0 L88.5,175.0 L96.9,159.6 L77.1,138.5 L89.0,122.2 L115.2,134.5 L127.3,121.8 L113.6,96.2 L129.3,83.5 L151.5,102.2 L166.4,93.0 L159.8,64.8 L178.3,56.6 L194.8,80.3 L211.6,75.4 L212.6,46.4 L232.5,43.3 L242.4,70.5Z" fill="url(#gH)" fill-rule="evenodd"/><circle cx="256" cy="256" r="150" fill="#0c1724"/></g>
+        <rect x="236" y="106" width="40" height="150" fill="url(#gH)"/><circle cx="256" cy="256" r="34" fill="url(#gH)"/><circle cx="256" cy="256" r="14" fill="#7dd3fc"/>
+        <path d="M240 270 L150 440 L192 458 L284 290Z" fill="url(#gH)"/><rect x="118" y="428" width="96" height="46" rx="12" transform="rotate(-14 166 451)" fill="#0369a1"/></svg>
+      <span class="gradtext">edalz</span>
+    </div>
+    <div class="tagline">RIDE. CONNECT. SHARE.</div>
+  </div>
+  <div class="row">
+    <button id="btnInstall" class="barbtn hidden" style="background:#0ea5e9;color:#062b49">Install</button>
+    <div style="position:relative">
+      <button id="btnRightMenu" class="barbtn" aria-haspopup="true" aria-controls="quickMenu"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>Tools</button>
+      <div id="quickMenu" class="menuPanel" role="menu">
+        <button class="menuItem" data-act="group">👥 Group</button>
+        <button class="menuItem" data-act="follow">🎯 Follow <span class="st" id="stFollow"></span></button>
+        <button class="menuItem" data-act="center">📍 Center on Me</button>
+        <button class="menuItem" data-act="theme">🌓 Theme <span class="st" id="stTheme"></span></button>
+        <button class="menuItem" data-act="sat">🛰️ Satellite <span class="st" id="stSat"></span></button>
+        <button class="menuItem" data-act="mode">🚴 Mode <span class="st" id="stMode"></span></button>
+        <button class="menuItem" data-act="units">📏 Units <span class="st" id="stUnits"></span></button>
+        <button class="menuItem" data-act="hr">❤️ Heart Rate <span class="st" id="stHr"></span></button>
+        <button class="menuItem" data-act="dash">⛶ Gauge Fullscreen</button>
+        <button class="menuItem" data-act="offline">📥 Save Map Offline</button>
+        <button class="menuItem" data-act="battery">🔋 Battery Saver <span class="st" id="stBat"></span></button>
+        <button class="menuItem" data-act="install">⬇️ Install App</button>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="offlineBadge" class="hidden">Offline</div>
+<div id="hrChip" class="hidden">❤️ <span id="hrVal">--</span> bpm</div>
+<div id="modeChip" class="hidden"></div>
+
+<!-- Drawer -->
+<div id="drawer" aria-hidden="true">
+  <div class="backdrop"></div>
+  <div class="panel">
+    <div class="row between"><div class="b lg">Menu</div><button class="xbtn" id="drawerClose" aria-label="Close">✕</button></div>
+    <div class="mt1"></div>
+    <button class="navItem" data-open="ride">🚴 Ride</button>
+    <button class="navItem" data-open="meet">🤝 Meet</button>
+    <button class="navItem" data-open="shop">🛒 Gear Shop</button>
+    <button class="navItem" data-open="causes">🎗️ Causes</button>
+    <button class="navItem" data-open="feed">📰 Feed</button>
+    <button class="navItem" data-open="gov">🏛️ Gov</button>
+    <button class="navItem" data-open="profile">👤 My Profile</button>
+    <button class="navItem" data-open="login" id="navLogin">🔑 Login / Signup</button>
+    <div class="mt2 xs muted">
+      <span class="legendDot"><span class="dot" style="background:var(--male)"></span>Male</span>
+      <span class="legendDot"><span class="dot" style="background:var(--female)"></span>Female</span>
+      <span class="legendDot"><span class="dot" style="background:var(--neutral)"></span>Opt-out</span>
+    </div>
+  </div>
+</div>
+
+<div id="map" aria-label="Map"></div>
+
+<!-- Gauges -->
+<div class="statsStack" id="statsStack">
+  <div class="statCircle"><div class="val" id="vTime">0:00</div><div class="lbl">Time</div></div>
+  <div class="statCircle">
+    <div class="val" id="vSpeed">0.0</div><div class="lbl" id="lSpeed">mph</div>
+    <svg class="arc" viewBox="0 0 42 42"><circle cx="21" cy="21" r="19" stroke="rgba(255,255,255,.12)" stroke-width="2" fill="none"/><circle id="spdArc" cx="21" cy="21" r="19" stroke="#38bdf8" stroke-width="2.8" fill="none" stroke-dasharray="0 120" stroke-linecap="round" transform="rotate(-90 21 21)"/></svg>
+  </div>
+  <div class="statCircle"><div class="val" id="vDist">0.00</div><div class="lbl" id="lDist">mi</div>
+    <button id="btnRoute" class="mini" title="Route / turn-by-turn" aria-label="Route"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="2"><path d="M3 6h5l2 3h6l5 7h-7l-2-3H6l-3-7z"/></svg></button></div>
+  <div class="statCircle"><div class="val" id="vElev">0</div><div class="lbl" id="lElev">ft</div></div>
+  <div class="statCircle hidden" id="cHr"><div class="val" id="vHr">--</div><div class="lbl">bpm</div></div>
+  <div class="row" style="flex-direction:inherit">
+    <button id="btnStart" class="pill" aria-label="Start ride" aria-pressed="false">Start</button>
+    <button id="btnDash" class="iconCircle" title="Fullscreen gauges" aria-label="Fullscreen gauges">⛶</button>
+    <button id="btnChart" class="iconCircle" title="Last ride summary" aria-label="Summary"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#fff" stroke-width="2"><path d="M4 19V5M10 19V9M16 19V12M22 19H2"/></svg></button>
+  </div>
+</div>
+
+<div id="miniWrap"><div id="mini"></div><button id="miniTog" aria-label="Expand mini map">⤢</button></div>
+
+<!-- Generic page modal -->
+<div id="pageWrap" class="modalWrap" aria-hidden="true"><div class="modalCard"><button class="xbtn modalClose" data-close="pageWrap" aria-label="Close">✕</button><h3 id="pageTitle"></h3><div id="pageBody"></div></div></div>
+<!-- Profile modal -->
+<div id="profileWrap" class="modalWrap" aria-hidden="true"><div class="modalCard"><button class="xbtn modalClose" data-close="profileWrap" aria-label="Close">✕</button><div id="profileBody"></div></div></div>
+<!-- Group / Follow -->
+<div id="groupWrap" class="modalWrap" aria-hidden="true"><div class="modalCard"><button class="xbtn modalClose" data-close="groupWrap" aria-label="Close">✕</button><h3>Nearby Riders</h3><div id="groupList"></div></div></div>
+<div id="followWrap" class="modalWrap" aria-hidden="true"><div class="modalCard"><button class="xbtn modalClose" data-close="followWrap" aria-label="Close">✕</button><h3>Follow a rider</h3><div id="followList"></div></div></div>
+<!-- Auth -->
+<div id="authWrap" class="modalWrap" aria-hidden="true"><div class="modalCard" style="width:min(440px,94vw)"><button class="xbtn modalClose" data-close="authWrap" aria-label="Close">✕</button>
+  <h3>Login / Signup</h3>
+  <div style="display:grid;gap:.5rem">
+    <input id="email" class="in" type="email" placeholder="Email" autocomplete="email"/>
+    <input id="pass" class="in" type="password" placeholder="Password (6+ chars)" autocomplete="current-password"/>
+    <label class="xs muted">Helmet color
+      <select id="gender" class="in"><option value="x">Opt-out (Green)</option><option value="m">Male (Blue)</option><option value="f">Female (Pink)</option></select></label>
+    <div class="row"><button id="btnLogin" class="btn grow">Login</button><button id="btnSignup" class="btn alt grow">Signup</button></div>
+    <div id="authNote" class="xs muted"></div>
+  </div></div></div>
+<!-- Summary -->
+<div id="sumWrap" class="modalWrap" aria-hidden="true"><div class="modalCard"><button class="xbtn modalClose" data-close="sumWrap" aria-label="Close">✕</button>
+  <h3>Ride Summary</h3>
+  <div class="grid2">
+    <div class="box"><div class="xs muted">Time</div><div id="sumTime" class="lg b">—</div></div>
+    <div class="box"><div class="xs muted">Avg Speed</div><div id="sumAvg" class="lg b">—</div></div>
+    <div class="box"><div class="xs muted">Distance</div><div id="sumDist" class="lg b">—</div></div>
+    <div class="box"><div class="xs muted">Elevation Gain</div><div id="sumElev" class="lg b">—</div></div>
+  </div>
+  <div class="box mt2"><canvas id="sumChart" height="120"></canvas></div>
+  <div class="row mt2 wrap"><button id="btnShareLink" class="btn">Copy Share Link</button><button id="btnShareSoc" class="btn alt">Share…</button></div>
+</div></div>
+
+<!-- Route drawer -->
+<div id="routeDrawer" class="bottomDrawer" aria-hidden="true">
+  <div class="row between"><h3 style="margin:0">Route / Guidance</h3><button id="routeClose" class="btn alt sm">Close</button></div>
+  <div class="xs muted mt1" id="routeHint">Tap “Pick destination”, then tap the map. Directions use the free OSM routing service.</div>
+  <div class="row mt1 wrap"><button id="btnPick" class="btn sm">Pick destination</button><button id="btnVoice" class="btn alt sm">🔊 Voice: off</button><button id="btnClearRoute" class="btn alt sm">Clear</button></div>
+  <div id="routeMap" class="mt1"></div>
+  <div class="grid3 mt1" style="grid-template-columns:repeat(3,1fr)">
+    <div class="box"><div class="xs muted">Distance</div><div id="rtDist" class="b">—</div></div>
+    <div class="box"><div class="xs muted">ETA</div><div id="rtETA" class="b">—</div></div>
+    <div class="box"><div class="xs muted">Next</div><div id="rtTurn" class="b sm">—</div></div>
+  </div>
+  <div id="rtSteps" class="mt1 sm"></div>
+</div>
+
+<!-- Camera -->
+<div id="camView" class="full hidden">
+  <video id="camVid" autoplay muted playsinline></video>
+  <div id="camGauges" class="gaugeBar"></div>
+  <div id="camMini"></div>
+  <div class="camTop"><button class="xbtn" id="camClose" aria-label="Close camera">✕</button><span id="camLive" class="livetag hidden">LIVE</span><span id="camRecInd" class="row hidden"><i class="recdot"></i><b id="camTimer">0:00</b></span></div>
+  <div class="camCtl"><button class="btn" id="camRec" style="background:#ef4444;color:#fff">● Record</button><button class="btn alt" id="camGoLive">Go Live</button></div>
+</div>
+<!-- Fullscreen gauges (optional) with minimized map -->
+<div id="dashView" class="full dash lay-classic hidden" role="dialog" aria-label="Gauge dashboard">
+  <div class="dashTop"><button class="xbtn" id="dashClose" aria-label="Exit fullscreen gauges">✕</button><span class="chip" id="dashMode"></span><span class="chip hrG hidden">❤️ <b id="dhHr">--</b> bpm</span>
+    <div class="seg" role="group" aria-label="Gauge layout"><button data-lay="classic">Classic</button><button data-lay="stack">Circles</button><button data-lay="corners">Corners</button><button id="dashTrainer" aria-label="Trainer mode">🎧 Trainer</button><button id="dashSat" aria-label="Satellite map">🛰️</button></div></div>
+  <div class="dashSpeed">
+    <svg viewBox="0 0 42 42"><circle cx="21" cy="21" r="19" stroke="rgba(255,255,255,.12)" stroke-width="2" fill="none"/><circle id="dashArc" cx="21" cy="21" r="19" stroke="#38bdf8" stroke-width="2.4" fill="none" stroke-dasharray="0 120" stroke-linecap="round" transform="rotate(-90 21 21)"/></svg>
+    <div class="dsv"><b id="dhSpd">0.0</b><span class="uSpd">mph</span></div>
+  </div>
+  <div class="dashGrid">
+    <div class="g"><b id="dhTime">0:00</b><span>Time</span></div>
+    <div class="g"><b id="dhDist">0.00</b><span class="uDist">mi</span></div>
+    <div class="g"><b id="dhElev">0</b><span class="uElev">ft</span></div>
+  </div>
+  <div class="dashBottom"><div id="dashMap"></div><button id="dashStart" class="pill" aria-label="Start ride">Start</button></div>
+  <!-- Trainer mode (prototype): AI coach visuals + live-stream embed -->
+  <div id="trainer" class="trainer hidden" role="dialog" aria-label="Trainer">
+    <div class="trHead">
+      <span class="grip" title="Drag to move" aria-hidden="true">⠿</span><div class="seg" style="margin-left:0"><button data-tr="ai" class="on">🤖 Coach</button><button data-tr="live">📺 Live</button></div>
+      <div class="row" style="gap:.25rem"><button class="trBtn" id="trVoice" aria-pressed="false" title="Voice cues">🔇</button><button class="trBtn" id="trSize" title="Expand">⤢</button><button class="trBtn" id="trClose" title="Close trainer">✕</button></div>
+    </div>
+    <div class="trBody">
+      <div id="trAI"><canvas id="trCanvas" width="960" height="540"></canvas><span class="trTag">PREVIEW</span><div class="trCue"><span class="av">🤖</span><span id="trCueTxt">Tap Start when you're ready — let's roll!</span></div></div>
+      <div id="trLive" class="hidden"><div id="trFrame">Paste a YouTube or Twitch link below</div>
+        <form id="trForm" class="row"><input id="trUrl" class="in" placeholder="YouTube or Twitch link" inputmode="url" autocomplete="off"/><button class="btn sm" type="submit">Watch</button></form>
+        <div id="trRecent" class="row wrap"></div><div class="xs muted" id="trNote"></div></div>
+    </div>
+    <div id="tGauges" class="gaugeBar hidden"></div>
+  </div>
+</div>
+<!-- Media viewer / playback -->
+<div id="mediaView" class="full hidden">
+  <div id="mediaHost" style="width:100%;height:100%"></div>
+  <div id="playGauges" class="gaugeBar hidden"></div>
+  <button class="xbtn" id="mediaClose" style="position:absolute;top:calc(12px + var(--sat));left:12px;z-index:8" aria-label="Close">✕</button>
+</div>
+
+<div id="installBanner" class="hidden">
+  <img src="assets/pedalz-icon-192.png" width="44" height="44" alt="" style="border-radius:10px"/>
+  <div class="grow"><div class="b">Install Pedalz</div><div class="xs muted" id="installMsg">One tap to add it to your home screen.</div></div>
+  <button class="btn sm" id="installGo">Install</button><button class="btn alt sm" id="installNo">Later</button>
+</div>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<script>
+'use strict';
+/* ============================ helpers ============================ */
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const CFG=window.PEDALZ_CONFIG||{};
+const LS={get(k,d){try{const v=localStorage.getItem('pz:'+k);return v==null?d:JSON.parse(v)}catch{return d}},set(k,v){try{localStorage.setItem('pz:'+k,JSON.stringify(v))}catch{}}};
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid=()=>(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random().toString(16).slice(2));
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const online=()=>navigator.onLine!==false;
+function toast(t,ms=2200){const n=document.createElement('div');n.className='toast';n.textContent=t;$('#toasts').appendChild(n);setTimeout(()=>{n.style.opacity='0';setTimeout(()=>n.remove(),450)},ms)}
+function showModal(id){const w=document.getElementById(id);w.setAttribute('aria-hidden','false');w.classList.add('show')}
+function hideModal(id){const w=document.getElementById(id);w.setAttribute('aria-hidden','true');w.classList.remove('show')}
+document.addEventListener('click',e=>{const c=e.target.closest('[data-close]');if(c)hideModal(c.dataset.close)});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeDash();$$('.modalWrap.show').forEach(m=>hideModal(m.id));$('#drawer').classList.remove('show')}});
+const isNight=()=>{const h=new Date().getHours();return h<6||h>=18};
+const colorFor=g=>g==='m'?'#38bdf8':g==='f'?'#ec4899':'#16a34a';
+function fileToDataURL(f){return new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result);fr.readAsDataURL(f)})}
+function resizeImage(file,max=520,q=.72){return new Promise(res=>{const img=new Image();const u=URL.createObjectURL(file);img.onload=()=>{const k=Math.min(1,max/Math.max(img.width,img.height));const c=document.createElement('canvas');c.width=Math.round(img.width*k);c.height=Math.round(img.height*k);c.getContext('2d').drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(u);res(c.toDataURL('image/jpeg',q))};img.onerror=()=>res(null);img.src=u})}
+const fmtTime=s=>{s=Math.max(0,Math.floor(s));const h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=s%60;return h?`${h}:${String(m).padStart(2,'0')}:${String(x).padStart(2,'0')}`:`${m}:${String(x).padStart(2,'0')}`};
+async function sha(s){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}
+function helmetSVG(c,size=30){return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24"><g fill="${c}" stroke="#000" stroke-opacity=".3" stroke-width=".6"><path d="M12 5c-4.2 0-7.5 2.7-8.5 6.7-.3 1.1.5 2.3 1.7 2.3h12.8c1.2 0 2-1.2 1.7-2.3C19.7 7.7 16.3 5 12 5z"/><rect x="9.5" y="13.5" width="5" height="1.8" rx=".9" fill="#fff" opacity=".9"/></g></svg>`}
+function riderIcon(g,mode,me){const c=colorFor(g);const html=(mode==='walk'||mode==='run')?`<div class="avatar-pin" style="border-color:${c}">${mode==='run'?'🏃':'🚶'}</div>`:helmetSVG(c,34);return L.divIcon({className:'pin'+(me?' me':''),html,iconSize:[34,34],iconAnchor:[17,17]})}
+function avatarHTML(g,mode){const c=colorFor(g);return `<div class="avatar" style="border-color:${c}">${(mode==='walk'||mode==='run')?(mode==='run'?'🏃':'🚶'):helmetSVG(c,34)}</div>`}
+function distM(a,b){const R=6371000,t=Math.PI/180,dl=(b[0]-a[0])*t,dn=(b[1]-a[1])*t;const x=Math.sin(dl/2)**2+Math.cos(a[0]*t)*Math.cos(b[0]*t)*Math.sin(dn/2)**2;return 2*R*Math.asin(Math.sqrt(x))}
+
+/* ============================ storage (IndexedDB media) ============================ */
+const DB={_p:null,open(){return this._p||(this._p=new Promise((res,rej)=>{const r=indexedDB.open('pedalz',1);r.onupgradeneeded=()=>r.result.createObjectStore('media',{keyPath:'id'});r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)}))},
+ async tx(mode,fn){const db=await this.open();return new Promise((res,rej)=>{const t=db.transaction('media',mode);const s=t.objectStore('media');const q=fn(s);t.oncomplete=()=>res(q&&q.result);t.onerror=()=>rej(t.error)})},
+ put(item){return this.tx('readwrite',s=>s.put(item))},del(id){return this.tx('readwrite',s=>s.delete(id))},
+ async all(u){const all=await this.tx('readonly',s=>s.getAll())||[];return all.filter(m=>m.uid===u).sort((a,b)=>b.ts-a.ts)}};
+
+/* ============================ state ============================ */
+const DEF_ME={id:'local',email:'',name:'You',handle:'pedalz_user',gender:'x',bio:'',genres:[],group:'',privacy:{vis:'group',radius:0.8}};
+let me=Object.assign({},DEF_ME,LS.get('me',{}));
+me.privacy=Object.assign({vis:'group',radius:.8},me.privacy||{});
+const ST=Object.assign({mapStyle:'street',dashLayout:'classic',theme:'auto',units:'imperial',mode:'bike',gauge:'right',battery:false,autoBattery:true},LS.get('settings',{}));
+let session=null;
+const saveMe=()=>LS.set('me',me), saveST=()=>LS.set('settings',ST);
+const loggedIn=()=>!!(session||LS.get('localAuth',false));
+const sb=(CFG.SUPABASE_URL&&CFG.SUPABASE_ANON_KEY&&window.supabase)?window.supabase.createClient(CFG.SUPABASE_URL,CFG.SUPABASE_ANON_KEY,{auth:{persistSession:true,autoRefreshToken:true}}):null;
+const canSync=()=>!!(sb&&session&&online());
+
+/* ============================ units / gauges ============================ */
+const U={imp:()=>ST.units==='imperial',
+ spd:ms=>U.imp()?ms*2.23694:ms*3.6,spdL:()=>U.imp()?'mph':'km/h',
+ dist:m=>U.imp()?m/1609.344:m/1000,distL:()=>U.imp()?'mi':'km',
+ elev:m=>U.imp()?m*3.28084:m,elevL:()=>U.imp()?'ft':'m'};
+function tween(el,to,dec=1){const from=parseFloat(el.dataset.v||'0')||0;el.dataset.v=to;if(ST.battery||matchMedia('(prefers-reduced-motion:reduce)').matches||Math.abs(to-from)<.01){el.textContent=to.toFixed(dec);return}
+ const t0=performance.now(),d=450;(function f(t){const k=clamp((t-t0)/d,0,1),e=1-Math.pow(1-k,3);el.textContent=(from+(to-from)*e).toFixed(dec);if(k<1)requestAnimationFrame(f)})(t0)}
+function gaugeHTML(p){return `<div class="g"><b id="${p}Time">0:00</b><span>Time</span></div><div class="g"><b id="${p}Spd">0.0</b><span class="uSpd">${U.spdL()}</span></div><div class="g"><b id="${p}Dist">0.00</b><span class="uDist">${U.distL()}</span></div><div class="g"><b id="${p}Elev">0</b><span class="uElev">${U.elevL()}</span></div><div class="g hrG ${LIVE.hr?'':'hidden'}"><b id="${p}Hr">--</b><span>bpm</span></div>`}
+function setGauges(p,v){const s=(id,t)=>{const e=document.getElementById(p+id);if(e)e.textContent=t};s('Time',fmtTime(v.t));s('Spd',v.spd.toFixed(1));s('Dist',v.dist.toFixed(2));s('Elev',String(Math.round(v.elev)));s('Hr',v.hr?String(Math.round(v.hr)):'--')}
+function applyGaugePos(){['#statsStack','#camGauges','#playGauges','#tGauges'].forEach(s=>{const e=$(s);if(!e)return;e.classList.remove('pos-left','pos-center','pos-right');e.classList.add('pos-'+ST.gauge)})}
+function refreshUnitLabels(){$('#lSpeed').textContent=U.spdL();$('#lDist').textContent=U.distL();$('#lElev').textContent=U.elevL();$$('.uSpd').forEach(e=>e.textContent=U.spdL());$$('.uDist').forEach(e=>e.textContent=U.distL());$$('.uElev').forEach(e=>e.textContent=U.elevL())}
+
+/* ============================ maps ============================ */
+const OSM={url:'https://tile.openstreetmap.org/{z}/{x}/{y}.png',sub:'abc',attr:'© OpenStreetMap contributors'};
+const OSMFR={url:'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',sub:'abc',attr:'© OpenStreetMap contributors, HOT'};
+const custom=(u,cls)=>u?[{url:u,sub:CFG.TILE_SUBDOMAINS||'abc',attr:CFG.TILE_ATTRIBUTION||'',cls}]:[];
+/* Dark mode = standard OSM tiles darkened with a CSS filter, so it never needs an API key.
+   Optional keyed providers can be set in config.js (TILE_URL_LIGHT / TILE_URL_DARK). */
+const PROV={
+ light:[...custom(CFG.TILE_URL_LIGHT,''),{...OSM,cls:''},{...OSMFR,cls:''}],
+ dark:[...custom(CFG.TILE_URL_DARK||CFG.TILE_URL_LIGHT,CFG.TILE_URL_DARK?'':'dark-tiles'),{...OSM,cls:'dark-tiles'},{...OSMFR,cls:'dark-tiles'}],
+ sat:[...custom(CFG.TILE_URL_SAT,''),{url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',sub:'',nz:18,attr:'Tiles © Esri — Esri, Maxar, Earthstar Geographics, and the GIS User Community',cls:''},{...OSM,cls:''}]};
+const resolveTheme=()=>ST.mapStyle==='sat'?'sat':(ST.theme==='auto'?(isNight()?'dark':'light'):ST.theme);
+const BASES=[];
+function makeBase(m,attr=true){
+ const o={map:m,layer:null,idx:0,errs:0,theme:null};
+ o.set=th=>{o.theme=th;const list=PROV[th],p=list[o.idx%list.length],old=o.layer;
+  const l=L.tileLayer(p.url,{maxZoom:19,subdomains:p.sub,attribution:attr?p.attr:'',opacity:old?0:1,keepBuffer:2,updateWhenIdle:ST.battery,className:p.cls||'',maxNativeZoom:p.nz||undefined});
+  l.on('tileerror',()=>{if(++o.errs>=8){o.errs=0;if(online()){o.idx++;o.set(o.theme);if(attr)toast('Map source switched (retrying)')}}});
+  l.once('load',()=>{l.setOpacity(1);if(old)setTimeout(()=>{try{m.removeLayer(old)}catch{}},320)});
+  l.addTo(m);o.layer=l};
+ BASES.push(o);return o}
+function applyTheme(){const th=resolveTheme();BASES.forEach(b=>{if(b.theme!==th){b.errs=0;b.set(th)}});$('#stTheme').textContent=ST.theme;$('#stSat').textContent=ST.mapStyle==='sat'?'on':'off';const ds=$('#dashSat');if(ds)ds.classList.toggle('on',ST.mapStyle==='sat')}
+function toggleSat(){ST.mapStyle=ST.mapStyle==='sat'?'street':'sat';saveST();applyTheme();toast(ST.mapStyle==='sat'?'Satellite map on':'Street map on')}
+let map,mini,mainBase,miniBase;
+function initMaps(){
+ map=L.map('map',{zoomControl:true,preferCanvas:true}).setView(LS.get('lastView',[25.7959,-80.1390]),LS.get('lastZoom',14));
+ mainBase=makeBase(map);mainBase.set(resolveTheme());
+ mini=L.map('mini',{attributionControl:false,zoomControl:false,dragging:true,tap:false}).setView(map.getCenter(),13);
+ miniBase=makeBase(mini,false);miniBase.set(resolveTheme());
+ map.on('moveend',()=>{const c=map.getCenter();LS.set('lastView',[c.lat,c.lng]);LS.set('lastZoom',map.getZoom());syncMini()});
+ const fix=()=>{map.invalidateSize();mini.invalidateSize()};
+ window.addEventListener('resize',fix);window.addEventListener('orientationchange',()=>setTimeout(fix,250));setTimeout(fix,200);
+ $('#miniTog').onclick=()=>{$('#miniWrap').classList.toggle('expanded');setTimeout(()=>{mini.invalidateSize();syncMini()},280)};
+}
+/* ============================ riders ============================ */
+const DEMO=[
+ {id:'dA',name:'Alex',handle:'alex_rides',gender:'m',mode:'bike',lat:25.799,lng:-80.142,vis:'group',rating:4.8,followers:120,following:86,rides:42,miles:610.8,avg:17.4,elev:2940,genres:['Road','Racing'],bio:'Sunrise road rides on the causeway.',gear:[{t:'Shimano SPD Pedals',p:45,cond:'Good'},{t:'Road Helmet',p:60,cond:'Like New'}]},
+ {id:'dB',name:'Bree',handle:'bree_b',gender:'f',mode:'bike',lat:25.803,lng:-80.146,vis:'group',rating:4.7,followers:95,following:60,rides:31,miles:402.2,avg:16.8,elev:2103,genres:['Touring','Commuting'],bio:'Commuter and weekend tourer.',gear:[{t:'700x28 Tires (pair)',p:35,cond:'New'}]},
+ {id:'dC',name:'Cam',handle:'cam_run',gender:'x',mode:'run',lat:25.793,lng:-80.135,vis:'group',rating:4.9,followers:188,following:121,rides:58,miles:380.5,avg:6.1,elev:1888,genres:['Freestyle'],bio:'Runner who also rides.',gear:[]},
+ {id:'dD',name:'Dee',handle:'dee_mtb',gender:'f',mode:'bike',lat:25.795,lng:-80.150,vis:'public',rating:4.6,followers:73,following:51,rides:25,miles:220.3,avg:15.9,elev:1201,genres:['MTB','BMX'],bio:'Trail rider.',gear:[{t:'Dropper Post',p:90,cond:'Good'}]}];
+const REMOTE={}; // supabase riders
+const markers={},areas={};let myMarker=null,followId=null,myPos=null;
+const isDemo=id=>String(id).startsWith('d');
+function placeRider(r,isMe){
+ const approx=r.vis==='public'&&!isMe;
+ if(r.vis==='off'&&!isMe){removeRider(r.id);return}
+ if(approx){ if(markers[r.id]){map.removeLayer(markers[r.id]);delete markers[r.id]}
+  const rad=(r.radius||.8)*1609.344;
+  if(!areas[r.id])areas[r.id]=L.circle([r.lat,r.lng],{radius:rad,color:colorFor(r.gender),fillColor:colorFor(r.gender),fillOpacity:.12,weight:1}).addTo(map).on('click',()=>openProfile(r.id));
+  else areas[r.id].setLatLng([r.lat,r.lng]).setRadius(rad);
+ }else{ if(areas[r.id]){map.removeLayer(areas[r.id]);delete areas[r.id]}
+  if(!markers[r.id])markers[r.id]=L.marker([r.lat,r.lng],{icon:riderIcon(r.gender,r.mode)}).addTo(map).bindTooltip(esc(r.name)).on('click',()=>openProfile(r.id));
+  else{markers[r.id].setLatLng([r.lat,r.lng]);markers[r.id].setIcon(riderIcon(r.gender,r.mode))}}
+}
+function removeRider(id){if(markers[id]){map.removeLayer(markers[id]);delete markers[id]}if(areas[id]){map.removeLayer(areas[id]);delete areas[id]}}
+const allRiders=()=>[...DEMO,...Object.values(REMOTE)];
+const miniM={};
+function syncMini(){
+ if(!mini)return;
+ allRiders().forEach(r=>{const p=[r.lat,r.lng];if(r.vis==='off')return;if(!miniM[r.id])miniM[r.id]=L.circleMarker(p,{radius:4,color:'#93c5fd',fillColor:'#93c5fd',fillOpacity:.9,weight:1}).addTo(mini);else miniM[r.id].setLatLng(p)});
+ if(myPos){const p=[myPos.lat,myPos.lng];if(!miniM.me)miniM.me=L.circleMarker(p,{radius:6,color:'#22d3ee',fillColor:'#22d3ee',fillOpacity:.95}).addTo(mini);else miniM.me.setLatLng(p)}
+ if(!$('#miniWrap').classList.contains('expanded'))mini.setView(myPos?[myPos.lat,myPos.lng]:map.getCenter(),mini.getZoom()||13,{animate:false});
+}
+function renderRiders(){allRiders().forEach(r=>placeRider(r,false))}
+function moveDemos(){DEMO.forEach(d=>{d.lat+=(Math.random()-.5)*.0009;d.lng+=(Math.random()-.5)*.0009});renderRiders();syncMini()}
+let demoTimer=null;
+function schedDemo(){clearInterval(demoTimer);demoTimer=setInterval(moveDemos,ST.battery?9000:4000)}
+function setMe(lat,lng){myPos={lat,lng};
+ if(!myMarker)myMarker=L.marker([lat,lng],{icon:riderIcon(me.gender,ST.mode,true),zIndexOffset:1000}).addTo(map).bindTooltip('You').on('click',()=>openProfile('me'));
+ else myMarker.setLatLng([lat,lng]);syncMini()}
+function refreshMyIcon(){if(myMarker)myMarker.setIcon(riderIcon(me.gender,ST.mode,true))}
+function centerOnMe(){
+ if(!navigator.geolocation){toast('Location not supported');return}
+ navigator.geolocation.getCurrentPosition(p=>{setMe(p.coords.latitude,p.coords.longitude);map.setView([p.coords.latitude,p.coords.longitude],15);toast('Centered on you')},()=>toast('Location unavailable — allow location access'),{enableHighAccuracy:!ST.battery,timeout:10000,maximumAge:30000});
+}
+setInterval(()=>{if(followId){const r=allRiders().find(x=>x.id===followId);if(r)map.panTo([r.lat,r.lng])}},3000);
+
+/* ============================ geolocation (shared) ============================ */
+const LIVE={spd:0,dist:0,elev:0,hr:0,t:0};
+const GEO={id:null,refs:0,last:null,onpos:[],
+ start(){this.refs++;if(this.id!=null||!navigator.geolocation)return;
+  this.id=navigator.geolocation.watchPosition(p=>{const c=p.coords,now=Date.now();let sp=c.speed;
+   if((sp==null||isNaN(sp))&&this.last){const dt=(now-this.last.t)/1000;if(dt>0)sp=distM([this.last.lat,this.last.lng],[c.latitude,c.longitude])/dt}
+   const pos={lat:c.latitude,lng:c.longitude,alt:c.altitude,spd:sp||0,t:now,acc:c.accuracy};this.last=pos;setMe(pos.lat,pos.lng);this.onpos.forEach(f=>f(pos))},
+   e=>{if(e.code===1)toast('Location permission denied')},{enableHighAccuracy:!ST.battery,maximumAge:ST.battery?5000:1000,timeout:15000})},
+ stop(){this.refs=Math.max(0,this.refs-1);if(this.refs===0&&this.id!=null){navigator.geolocation.clearWatch(this.id);this.id=null}},
+ restart(){if(this.id!=null){navigator.geolocation.clearWatch(this.id);this.id=null;const r=this.refs;this.refs=0;for(let i=0;i<r;i++)this.start()}}};
+
+/* ============================ ride tracking ============================ */
+const R={on:false,t0:0,distM:0,gainM:0,maxMs:0,pts:[],series:[],lastAlt:null,timer:null,lastRide:LS.get('lastRide',null)};
+GEO.onpos.push(p=>{
+ LIVE.spd=p.spd;LIVE.elev=p.alt!=null?p.alt:LIVE.elev;
+ if(R.on){ if(R.pts.length){const d=distM(R.pts[R.pts.length-1],[p.lat,p.lng]);if(d>=2&&d<500){R.distM+=d;R.pts.push([p.lat,p.lng])}} else R.pts.push([p.lat,p.lng]);
+  if(p.alt!=null){if(R.lastAlt!=null&&p.alt-R.lastAlt>=1)R.gainM+=p.alt-R.lastAlt;if(R.lastAlt==null||Math.abs(p.alt-R.lastAlt)>=1)R.lastAlt=p.alt}
+  R.maxMs=Math.max(R.maxMs,p.spd);LIVE.dist=R.distM}
+ routeAdvance(p);maybeBroadcast(p)});
+function tickUI(sample){
+ const t=R.on?(Date.now()-R.t0)/1000:0;LIVE.t=t;
+ const v={t,spd:U.spd(LIVE.spd),dist:U.dist(R.distM),elev:U.elev(LIVE.elev),hr:LIVE.hr};
+ $('#vTime').textContent=fmtTime(t);tween($('#vSpeed'),v.spd);tween($('#vDist'),v.dist,2);tween($('#vElev'),v.elev,0);
+ const max=U.imp()?60:100;$('#spdArc').setAttribute('stroke-dasharray',`${clamp(v.spd/max,0,1)*119.4} 120`);
+ if(LIVE.hr){$('#vHr').textContent=Math.round(LIVE.hr);$('#hrVal').textContent=Math.round(LIVE.hr)}
+ if(R.on&&sample)R.series.push({t:Math.round(t),s:+LIVE.spd.toFixed(2),e:Math.round(LIVE.elev||0),h:Math.round(LIVE.hr||0)});
+ if(!$('#camView').classList.contains('hidden'))setGauges('cg',v);
+ if(DASH.open){setGauges('dh',v);$('#dashArc').setAttribute('stroke-dasharray',`${clamp(v.spd/max,0,1)*119.4} 120`);if(TR.open&&TR.big)setGauges('tg',v)}
+}
+function startRide(){
+ if(R.on)return;TR.mile=0;TR.five=0;R.on=true;R.t0=Date.now();R.distM=0;R.gainM=0;R.maxMs=0;R.pts=[];R.series=[];R.lastAlt=null;
+ GEO.start();R.timer=setInterval(()=>tickUI(true),ST.battery?2000:1000);
+ const b=$('#btnStart');b.textContent='Stop';b.classList.add('stop');b.setAttribute('aria-pressed','true');b.setAttribute('aria-label','Stop ride');syncDashBtn();
+ if('wakeLock' in navigator&&!ST.battery)navigator.wakeLock.request('screen').then(l=>R.wl=l).catch(()=>{});
+ toast('Ride started')}
+async function stopRide(){
+ if(!R.on)return;R.on=false;clearInterval(R.timer);GEO.stop();try{R.wl&&R.wl.release()}catch{}
+ const b=$('#btnStart');b.textContent='Start';b.classList.remove('stop');b.setAttribute('aria-pressed','false');b.setAttribute('aria-label','Start ride');syncDashBtn();
+ const dur=Math.floor((Date.now()-R.t0)/1000);
+ if(dur<5||R.distM<5){toast('Ride too short to save');tickUI();return}
+ const step=Math.max(1,Math.ceil(R.pts.length/300));
+ const ride={id:uid(),ts:R.t0,dur,distM:Math.round(R.distM),avgMs:R.distM/dur,maxMs:R.maxMs,gainM:Math.round(R.gainM),mode:ST.mode,path:R.pts.filter((_,i)=>i%step===0),series:R.series.filter((_,i)=>i%Math.max(1,Math.ceil(R.series.length/200))===0)};
+ const rides=LS.get('rides',[]);rides.unshift(ride);LS.set('rides',rides.slice(0,200));R.lastRide=ride;LS.set('lastRide',ride);
+ pushRide(ride);showSummary(ride);tickUI();
+}
+let sumChart=null;
+function showSummary(r){
+ if(!r){toast('No ride yet — tap Start');return}
+ $('#sumTime').textContent=fmtTime(r.dur);$('#sumAvg').textContent=`${U.spd(r.avgMs).toFixed(1)} ${U.spdL()}`;$('#sumDist').textContent=`${U.dist(r.distM).toFixed(2)} ${U.distL()}`;$('#sumElev').textContent=`${Math.round(U.elev(r.gainM))} ${U.elevL()}`;
+ if(window.Chart){if(sumChart)sumChart.destroy();const ds=[{label:`Speed (${U.spdL()})`,data:r.series.map(x=>+U.spd(x.s).toFixed(1)),borderColor:'#38bdf8',borderWidth:2,tension:.3,pointRadius:0}];
+  if(r.series.some(x=>x.h))ds.push({label:'Heart rate',data:r.series.map(x=>x.h||null),borderColor:'#ec4899',borderWidth:2,tension:.3,pointRadius:0});
+  sumChart=new Chart($('#sumChart'),{type:'line',data:{labels:r.series.map(x=>x.t),datasets:ds},options:{responsive:true,plugins:{legend:{display:true,labels:{color:'#cbd5e1'}}},scales:{x:{display:false},y:{ticks:{color:'#9fb3c8'},grid:{color:'rgba(255,255,255,.07)'}}}}})}
+ showModal('sumWrap')}
+$('#btnStart').onclick=()=>R.on?stopRide():startRide();
+$('#btnChart').onclick=()=>showSummary(R.lastRide);
+$('#btnShareLink').onclick=async()=>{const u=location.origin+location.pathname+'#ride='+Date.now();try{await navigator.clipboard.writeText(u);toast('Share link copied')}catch{toast(u,5000)}};
+$('#btnShareSoc').onclick=async()=>{const d={title:'Pedalz ride',text:'Check out my ride on Pedalz',url:location.origin+location.pathname};if(navigator.share){try{await navigator.share(d)}catch{}}else toast('Sharing not supported on this device')};
+
+/* ============================ fullscreen gauges (optional) + offline map save ============================ */
+const DASH={open:false,map:null,base:null,mark:null,timer:null,wl:null};
+function syncDashBtn(){const b=$('#dashStart');if(!b)return;b.textContent=R.on?'Stop':'Start';b.classList.toggle('stop',R.on)}
+function setDashLayout(l){ST.dashLayout=l;saveST();const v=$('#dashView');v.classList.remove('lay-classic','lay-stack','lay-corners');v.classList.add('lay-'+l);$$('#dashView [data-lay]').forEach(b=>b.classList.toggle('on',b.dataset.lay===l));setTimeout(()=>{if(DASH.map){DASH.map.invalidateSize();dashMove()}},180)}
+function openDash(){
+ if(DASH.open)return;DASH.open=true;GEO.start();setDashLayout(ST.dashLayout||'classic');
+ $('#dashMode').textContent=`${MODE_ICON[ST.mode]} ${ST.mode}`;$('#dashView').classList.remove('hidden');syncDashBtn();refreshUnitLabels();
+ if(!DASH.map){DASH.map=L.map('dashMap',{attributionControl:false,zoomControl:false,dragging:true,tap:false});DASH.base=makeBase(DASH.map,false);DASH.base.set(resolveTheme())}
+ setTimeout(()=>{DASH.map.invalidateSize();const c=myPos?[myPos.lat,myPos.lng]:[map.getCenter().lat,map.getCenter().lng];DASH.map.setView(c,16);dashMove()},250);
+ clearInterval(DASH.timer);DASH.timer=setInterval(()=>{tickUI(false);dashMove()},ST.battery?2000:1000);tickUI(false);
+ if('wakeLock' in navigator&&!ST.battery)navigator.wakeLock.request('screen').then(l=>DASH.wl=l).catch(()=>{})}
+function dashMove(){if(!DASH.open||!myPos)return;const p=[myPos.lat,myPos.lng];if(!DASH.mark)DASH.mark=L.circleMarker(p,{radius:7,color:'#22d3ee',fillColor:'#22d3ee',fillOpacity:.95}).addTo(DASH.map);else DASH.mark.setLatLng(p);DASH.map.setView(p,DASH.map.getZoom()||16,{animate:false})}
+function closeDash(){if(!DASH.open)return;closeTrainer();DASH.open=false;clearInterval(DASH.timer);GEO.stop();try{DASH.wl&&DASH.wl.release()}catch{}$('#dashView').classList.add('hidden');setTimeout(()=>map&&map.invalidateSize(),100)}
+$$('#dashView [data-lay]').forEach(b=>b.onclick=()=>setDashLayout(b.dataset.lay));$('#dashSat').onclick=toggleSat;$('#btnDash').onclick=openDash;$('#dashClose').onclick=closeDash;$('#dashStart').onclick=()=>R.on?stopRide():startRide();
+/* ---- Trainer mode (prototype) ---- */
+const TR={open:false,tab:'ai',big:false,voice:false,raf:0,lastFrame:0,lastCue:0,off:0,mile:0,five:0,url:LS.get('trainerLast',null)};
+const IDLE=["Tap Start when you're ready — let's roll!","Warm up easy. Nice and smooth.","Fill the bottle, clip in, and let's go!"];
+const STEADY=["Smooth and steady — that's the rhythm.","Relax your shoulders and keep spinning.","Eyes up, breathe deep. You're doing great!","Strong legs. Keep the cadence light."];
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+function setCue(m){$('#trCueTxt').textContent=m;if(TR.voice)speak(m)}
+function coachCue(){
+ const now=Date.now();if(now-TR.lastCue<12000)return;TR.lastCue=now;let m;
+ if(!R.on)m=pick(IDLE);else{const t=(now-R.t0)/1000,unit=U.imp()?1609.344:1000,mile=Math.floor(R.distM/unit),avg=R.distM/Math.max(1,t),ratio=avg>0?LIVE.spd/avg:1;
+  if(mile>TR.mile){TR.mile=mile;m=`${mile} ${U.distL()} done — keep that rhythm!`}
+  else if(LIVE.hr>175)m='Heart rate is high — breathe and ease off a touch.';
+  else if(Math.floor(t/300)>TR.five){TR.five=Math.floor(t/300);m=`${TR.five*5} minutes in — you're looking strong!`}
+  else if(t>30&&ratio<.6)m="Let's pick it up a little — you've got this!";
+  else if(ratio>1.35)m='Strong push! Settle in and hold it.';
+  else m=pick(STEADY)}
+ setCue(m)}
+function trDraw(ts){
+ if(!TR.open||TR.tab!=='ai')return;TR.raf=requestAnimationFrame(trDraw);
+ if(ts-TR.lastFrame<(ST.battery?66:33))return;TR.lastFrame=ts;
+ const c=$('#trCanvas'),g=c.getContext('2d'),W=640,H=360,hz=H*.46,v=R.on?Math.max(LIVE.spd,1.5):3.5;
+ g.setTransform(1.5,0,0,1.5,0,0);TR.off=(TR.off+v*.0035)%1;const night=isNight();
+ let k=g.createLinearGradient(0,0,0,hz);k.addColorStop(0,night?'#0a1330':'#2b7bc4');k.addColorStop(1,night?'#3b2f63':'#f6b26b');g.fillStyle=k;g.fillRect(0,0,W,hz);
+ g.fillStyle=night?'#e6e9ff':'#ffe08a';g.beginPath();g.arc(W*.72,hz-34,night?18:30,0,7);g.fill();
+ g.fillStyle=night?'#0d1a33':'#3f7d5a';g.beginPath();g.moveTo(0,hz);for(let x=0;x<=W;x+=40)g.lineTo(x,hz-18-14*Math.sin(x*.021+1));g.lineTo(W,hz);g.fill();
+ g.fillStyle=night?'#12301f':'#4f9a62';g.fillRect(0,hz,W,H-hz);
+ g.fillStyle='#2b3440';g.beginPath();g.moveTo(W*.47,hz);g.lineTo(W*.53,hz);g.lineTo(W*.94,H);g.lineTo(W*.06,H);g.fill();
+ for(let i=0;i<8;i++){const t=((i+TR.off)/8),p=t*t,y=hz+(H-hz)*p,w=3+p*16,h=2+p*30;g.fillStyle='#f5f7fa';g.fillRect(W/2-w/2,y,w,h);
+  const px=W*(.47-.41*p)-12*p,qx=W*(.53+.41*p)+12*p;g.fillStyle='#c8d3df';g.fillRect(px-2-p*8,y,4+p*8,10+p*34);g.fillRect(qx-2,y,4+p*8,10+p*34)}
+ coachCue()}
+function trTab(t){TR.tab=t;$$('#trainer [data-tr]').forEach(b=>b.classList.toggle('on',b.dataset.tr===t));$('#trAI').classList.toggle('hidden',t!=='ai');$('#trLive').classList.toggle('hidden',t!=='live');
+ cancelAnimationFrame(TR.raf);if(t==='ai')TR.raf=requestAnimationFrame(trDraw);else{trRecent();if(TR.url)trEmbed(TR.url);else $('#trFrame').textContent='Paste a YouTube or Twitch link below'}
+ if(t==='ai')$('#trFrame').innerHTML=''}
+function parseStream(u){u=(u||'').trim();let m;
+ if((m=u.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?(?:.*&)?v=|live\/|embed\/|shorts\/))([\w-]{11})/))||(m=u.match(/^([\w-]{11})$/)))return{k:'YouTube',src:`https://www.youtube.com/embed/${m[1]}?autoplay=1&playsinline=1&rel=0`,u};
+ if((m=u.match(/twitch\.tv\/videos\/(\d+)/i)))return{k:'Twitch',src:`https://player.twitch.tv/?video=${m[1]}&parent=${location.hostname}&autoplay=true`,u};
+ if((m=u.match(/twitch\.tv\/(\w{3,25})\/?(?:\?.*)?$/i)))return{k:'Twitch',src:`https://player.twitch.tv/?channel=${m[1]}&parent=${location.hostname}&autoplay=true`,u};
+ return null}
+function trEmbed(url){const st=parseStream(url);const f=$('#trFrame'),n=$('#trNote');
+ if(!st){n.textContent='That doesn\'t look like a YouTube or Twitch link.';return}
+ if(!online()){n.textContent='Live streams need a connection.';return}
+ n.textContent=`${st.k} • sound and chat are controlled inside the player`;f.innerHTML='';const i=document.createElement('iframe');i.src=st.src;i.allow='autoplay; fullscreen; picture-in-picture';i.setAttribute('allowfullscreen','');i.referrerPolicy='strict-origin-when-cross-origin';i.title='Trainer stream';f.appendChild(i);
+ TR.url=url;LS.set('trainerLast',url);const rec=LS.get('trainerRecent',[]).filter(x=>x!==url);rec.unshift(url);LS.set('trainerRecent',rec.slice(0,5));trRecent()}
+function trRecent(){const r=$('#trRecent');r.innerHTML='';LS.get('trainerRecent',[]).forEach(u=>{const st=parseStream(u);if(!st)return;const b=document.createElement('button');b.className='chip';b.type='button';b.textContent=st.k+' • '+u.replace(/^https?:\/\/(www\.)?/,'').slice(0,22);b.onclick=()=>{$('#trUrl').value=u;trEmbed(u)};r.appendChild(b)})}
+function openTrainer(){TR.open=true;$('#dashTrainer').classList.add('on');TR.mile=0;TR.five=0;TR.lastCue=0;$('#trainer').classList.remove('hidden');$('#tGauges').innerHTML=gaugeHTML('tg');applyGaugePos();trTab(TR.tab)}
+function closeTrainer(){if(!TR.open)return;TR.open=false;$('#dashTrainer').classList.remove('on');cancelAnimationFrame(TR.raf);$('#trainer').classList.add('hidden');$('#trainer').classList.remove('big');TR.big=false;$('#tGauges').classList.add('hidden');$('#trFrame').innerHTML='';$('#trSize').textContent='⤢';try{speechSynthesis.cancel()}catch{}}
+$('#dashTrainer').onclick=()=>TR.open?closeTrainer():openTrainer();$('#trClose').onclick=closeTrainer;
+$$('#trainer [data-tr]').forEach(b=>b.onclick=()=>trTab(b.dataset.tr));
+$('#trSize').onclick=()=>{TR.big=!TR.big;$('#trainer').classList.toggle('big',TR.big);$('#tGauges').classList.toggle('hidden',!TR.big);$('#trSize').textContent=TR.big?'⤡':'⤢';if(TR.big){const t=$('#trainer');t.style.left=t.style.top=t.style.right=t.style.bottom=''}}
+$('#trVoice').onclick=()=>{TR.voice=!TR.voice;const b=$('#trVoice');b.textContent=TR.voice?'🔊':'🔇';b.setAttribute('aria-pressed',TR.voice);if(TR.voice)speak('Coach voice on');else try{speechSynthesis.cancel()}catch{}};
+$('#trForm').onsubmit=e=>{e.preventDefault();trEmbed($('#trUrl').value)};
+(function(){const t=$('#trainer'),h=t.querySelector('.grip');let d=null;
+ h.addEventListener('pointerdown',e=>{if(TR.big)return;const r=t.getBoundingClientRect();d={dx:e.clientX-r.left,dy:e.clientY-r.top};h.setPointerCapture(e.pointerId)});
+ h.addEventListener('pointermove',e=>{if(!d)return;t.style.left=clamp(e.clientX-d.dx,0,innerWidth-t.offsetWidth)+'px';t.style.top=clamp(e.clientY-d.dy,0,innerHeight-t.offsetHeight)+'px';t.style.right='auto';t.style.bottom='auto'});
+ h.addEventListener('pointerup',()=>d=null)})();
+function tileXY(lat,lng,z){const n=2**z,r=lat*Math.PI/180;return[clamp(Math.floor((lng+180)/360*n),0,n-1),clamp(Math.floor((1-Math.log(Math.tan(r)+1/Math.cos(r))/Math.PI)/2*n),0,n-1)]}
+async function saveOffline(){
+ if(!online())return toast('Connect to save a map area');if(!window.caches)return toast('Offline storage not supported here');
+ const lay=mainBase.layer,b=map.getBounds(),z0=map.getZoom(),MAX=250;
+ let hi=clamp(z0+2,3,17),lo=Math.min(clamp(z0-1,3,19),hi);
+ const build=()=>{const out=[];for(let z=lo;z<=hi;z++){const [x1,y1]=tileXY(b.getNorth(),b.getWest(),z),[x2,y2]=tileXY(b.getSouth(),b.getEast(),z);for(let x=x1;x<=x2;x++)for(let y=y1;y<=y2;y++)out.push([x,y,z])}return out};
+ let list=build();while(list.length>MAX&&hi>lo){hi--;list=build()}if(list.length>MAX)list=list.slice(0,MAX);
+ const subs=lay.options.subdomains,sa=typeof subs==='string'?subs.split(''):subs,url=lay._url;
+ const mk=([x,y,z])=>url.replace('{s}',sa[(x+y)%sa.length]).replace('{x}',x).replace('{y}',y).replace('{z}',z).replace('{r}','');
+ const cache=await caches.open('pedalz-tiles');let i=0,fail=0;toast(`Saving ${list.length} map tiles for offline use…`);
+ await Promise.all(Array.from({length:6},async()=>{while(i<list.length){const u=mk(list[i++]);try{if(!(await cache.match(u,{ignoreVary:true}))){const r=await fetch(u,{mode:'cors'});if(r.ok)await cache.put(u,r);else fail++}}catch{fail++}}}));
+ toast(fail?`Saved ${list.length-fail} of ${list.length} tiles`:`Saved ${list.length} tiles (zoom ${lo}–${hi}). Works in light and dark theme.`,3800)}
+
+/* ============================ heart rate ============================ */
+const HR={dev:null,demo:false,timer:null,on:false};
+function hrShow(on){HR.on=on;LIVE.hr=on?LIVE.hr||70:0;$('#cHr').classList.toggle('hidden',!on);$('#hrChip').classList.toggle('hidden',!on);$$('.hrG').forEach(e=>e.classList.toggle('hidden',!on));$('#stHr').textContent=on?(HR.demo?'demo':'on'):'off'}
+async function hrToggle(){
+ if(HR.on){clearInterval(HR.timer);try{HR.dev&&HR.dev.gatt.connected&&HR.dev.gatt.disconnect()}catch{}HR.dev=null;HR.demo=false;hrShow(false);toast('Heart rate off');return}
+ if(navigator.bluetooth){
+  try{const d=await navigator.bluetooth.requestDevice({filters:[{services:['heart_rate']}]});const s=await d.gatt.connect();const sv=await s.getPrimaryService('heart_rate');const ch=await sv.getCharacteristic('heart_rate_measurement');await ch.startNotifications();
+   ch.addEventListener('characteristicvaluechanged',e=>{const v=e.target.value;LIVE.hr=(v.getUint8(0)&1)?v.getUint16(1,true):v.getUint8(1);tickUI()});HR.dev=d;HR.demo=false;hrShow(true);toast('Heart rate monitor connected');
+   d.addEventListener('gattserverdisconnected',()=>{hrShow(false);toast('Heart rate disconnected')});return}
+  catch(e){if(e&&e.name==='NotFoundError')return;toast('Bluetooth unavailable — using demo heart rate')}}
+ HR.demo=true;LIVE.hr=72;hrShow(true);clearInterval(HR.timer);
+ HR.timer=setInterval(()=>{const target=70+clamp(U.spd(LIVE.spd)*(U.imp()?4:2.5),0,90);LIVE.hr=clamp(LIVE.hr+(target-LIVE.hr)*.2+(Math.random()-.5)*3,55,190);tickUI()},1500);
+ toast('Heart rate: demo mode')}
+
+/* ============================ battery / offline / mode / units ============================ */
+function setBattery(on,auto){ST.battery=on;saveST();document.body.classList.toggle('battery',on);$('#stBat').textContent=on?'on':'off';
+ schedDemo();GEO.restart();if(R.on){clearInterval(R.timer);R.timer=setInterval(()=>tickUI(true),on?2000:1000)}
+ if(!auto||on)toast(on?(auto?'Battery Saver on (low battery)':'Battery Saver on'):'Battery Saver off');
+ BASES.forEach(b=>{if(b.layer)b.layer.options.updateWhenIdle=on})}
+if(navigator.getBattery)navigator.getBattery().then(b=>{const chk=()=>{if(ST.autoBattery&&!b.charging&&b.level<=.2&&!ST.battery)setBattery(true,true)};b.addEventListener('levelchange',chk);b.addEventListener('chargingchange',chk);chk()}).catch(()=>{});
+function setOffline(off){$('#offlineBadge').classList.toggle('hidden',!off);if(off)toast('Offline — using cached map tiles; sync paused');else{toast('Back online');BASES.forEach(b=>{b.errs=0;b.layer&&b.layer.redraw()});flushQueue();loadRemote()}}
+window.addEventListener('online',()=>setOffline(false));window.addEventListener('offline',()=>setOffline(true));
+const MODES=['bike','walk','run'],MODE_ICON={bike:'🚴',walk:'🚶',run:'🏃'};
+function setMode(m){ST.mode=m;saveST();$('#stMode').textContent=MODE_ICON[m]+' '+m;const c=$('#modeChip');c.textContent=`${MODE_ICON[m]} ${m}`;c.classList.toggle('hidden',m==='bike');
+ refreshMyIcon();const dm=$('#dashMode');if(dm)dm.textContent=`${MODE_ICON[m]} ${m}`}
+function setUnits(u){ST.units=u;saveST();$('#stUnits').textContent=u==='imperial'?'mi / mph':'km / km/h';refreshUnitLabels();tickUI()}
+
+/* ============================ routing ============================ */
+const RT={map:null,base:null,line:null,dest:null,pick:false,steps:[],idx:0,voice:false,total:0,dur:0};
+function openRoute(){$('#routeDrawer').classList.add('show');$('#routeDrawer').setAttribute('aria-hidden','false');
+ if(!RT.map){RT.map=L.map('routeMap',{zoomControl:false,attributionControl:false});RT.base=makeBase(RT.map,false);RT.base.set(resolveTheme());RT.map.on('click',e=>{if(RT.pick){RT.pick=false;setDest(e.latlng)}});}
+ setTimeout(()=>{RT.map.invalidateSize();RT.map.setView(myPos?[myPos.lat,myPos.lng]:map.getCenter(),14)},260)}
+$('#btnRoute').onclick=openRoute;
+$('#routeClose').onclick=()=>{$('#routeDrawer').classList.remove('show');$('#routeDrawer').setAttribute('aria-hidden','true')};
+$('#btnPick').onclick=()=>{RT.pick=true;toast('Tap the route map to set your destination')};
+$('#btnClearRoute').onclick=()=>{if(RT.line)RT.map.removeLayer(RT.line);if(RT.dest)RT.map.removeLayer(RT.dest);RT.line=RT.dest=null;RT.steps=[];$('#rtSteps').innerHTML='';['#rtDist','#rtETA','#rtTurn'].forEach(s=>$(s).textContent='—')};
+$('#btnVoice').onclick=()=>{RT.voice=!RT.voice;$('#btnVoice').textContent='🔊 Voice: '+(RT.voice?'on':'off');if(RT.voice)speak('Voice guidance on')};
+function speak(t){try{if('speechSynthesis' in window){speechSynthesis.cancel();speechSynthesis.speak(new SpeechSynthesisUtterance(t))}}catch{}}
+function stepText(s){const m=s.maneuver||{},ty=m.type||'',md=m.modifier?m.modifier.replace('-',' '):'',nm=s.name?` onto ${s.name}`:'';
+ if(ty==='depart')return`Head ${md||'out'}${s.name?' on '+s.name:''}`;if(ty==='arrive')return'You have arrived';if(ty==='roundabout'||ty==='rotary')return`Take the roundabout${nm}`;
+ if(ty==='continue'||ty==='new name')return`Continue${nm}`;return`Turn ${md}${nm}`.replace('Turn straight','Continue straight')}
+async function setDest(ll){
+ if(!online()){toast('Routing needs a connection');return}
+ const from=myPos?[myPos.lat,myPos.lng]:[map.getCenter().lat,map.getCenter().lng];
+ const prof=ST.mode==='bike'?'routed-bike':'routed-foot';
+ if(RT.dest)RT.map.removeLayer(RT.dest);RT.dest=L.marker(ll).addTo(RT.map);
+ try{const r=await fetch(`https://routing.openstreetmap.de/${prof}/route/v1/driving/${from[1]},${from[0]};${ll.lng},${ll.lat}?overview=full&geometries=geojson&steps=true`);const j=await r.json();
+  if(!j.routes||!j.routes[0])throw new Error('none');const rt=j.routes[0];
+  if(RT.line)RT.map.removeLayer(RT.line);RT.line=L.geoJSON(rt.geometry,{style:{color:'#38bdf8',weight:5}}).addTo(RT.map);RT.map.fitBounds(RT.line.getBounds(),{padding:[20,20]});
+  RT.steps=rt.legs[0].steps.map(s=>({text:stepText(s),loc:[s.maneuver.location[1],s.maneuver.location[0]],dist:s.distance}));RT.idx=0;RT.total=rt.distance;RT.dur=rt.duration;
+  $('#rtDist').textContent=`${U.dist(rt.distance).toFixed(2)} ${U.distL()}`;$('#rtETA').textContent=new Date(Date.now()+rt.duration*1000).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
+  $('#rtSteps').innerHTML=RT.steps.map((s,i)=>`<div class="listRow"><b>${i+1}</b><div class="grow">${esc(s.text)}</div><span class="xs muted">${U.dist(s.dist).toFixed(2)} ${U.distL()}</span></div>`).join('');
+  announce()}catch{toast('Could not find a route')}}
+function announce(){const s=RT.steps[RT.idx];if(!s)return;$('#rtTurn').textContent=s.text;if(RT.voice)speak(s.text)}
+function routeAdvance(p){if(!RT.steps.length)return;const s=RT.steps[RT.idx+1];if(s&&distM([p.lat,p.lng],s.loc)<30){RT.idx++;announce()}}
+
+/* ============================ supabase sync ============================ */
+const QUEUE=LS.get('queue',[]);
+const saveQ=()=>LS.set('queue',QUEUE);
+function enqueue(op){QUEUE.push(op);saveQ()}
+async function flushQueue(){if(!canSync()||!QUEUE.length)return;const rest=[];for(const op of QUEUE){try{const {error}=await sb.from(op.table)[op.kind](op.row);if(error)throw error}catch{rest.push(op)}}QUEUE.length=0;QUEUE.push(...rest);saveQ()}
+async function dbWrite(table,row,kind='insert'){if(!sb||!session)return;if(!online()){enqueue({table,row,kind});return}try{const {error}=await sb.from(table)[kind](row);if(error)throw error}catch(e){enqueue({table,row,kind})}}
+function pushRide(r){dbWrite('rides',{id:r.id,user_id:session&&session.user.id,ts:new Date(r.ts).toISOString(),dur_s:r.dur,dist_m:r.distM,avg_ms:r.avgMs,max_ms:r.maxMs,gain_m:r.gainM,mode:r.mode,path:r.path,series:r.series})}
+function syncProfile(){if(!canSync())return;sb.from('profiles').upsert({id:session.user.id,name:me.name,handle:me.handle,gender:me.gender,bio:me.bio,genres:me.genres,grp:me.group||null,vis:me.privacy.vis,radius:me.privacy.radius}).then(()=>{},()=>{})}
+let lastBroadcast=0;
+function approx(lat,lng,rad){const k=rad*1609.344/111320;return [Math.round(lat/k)*k,Math.round(lng/k)*k]}
+function maybeBroadcast(p){
+ if(!canSync()||me.privacy.vis==='off')return;const now=Date.now();if(now-lastBroadcast<(ST.battery?15000:6000))return;lastBroadcast=now;
+ let lat=p.lat,lng=p.lng;if(me.privacy.vis==='public')[lat,lng]=approx(lat,lng,me.privacy.radius);
+ sb.from('live_locations').upsert({user_id:session.user.id,name:me.name,gender:me.gender,mode:ST.mode,lat,lng,vis:me.privacy.vis,radius:me.privacy.radius,grp:me.group||null,live:!!LIVEFLAG,updated_at:new Date().toISOString()}).then(()=>{},()=>{})}
+let LIVEFLAG=false,chan=null;
+function rowToRider(r){return{id:r.user_id,name:r.name||'Rider',handle:(r.name||'rider').toLowerCase().replace(/\s+/g,'_'),gender:r.gender||'x',mode:r.mode||'bike',lat:r.lat,lng:r.lng,vis:r.vis,radius:r.radius,grp:r.grp,live:r.live}}
+function acceptRemote(r){if(!session||r.user_id===session.user.id)return false;if(r.vis==='public')return true;if((r.vis==='group'||r.vis==='friends')&&r.grp&&r.grp===me.group)return true;return false}
+async function loadRemote(){
+ if(!canSync())return;const since=new Date(Date.now()-15*60000).toISOString();
+ const {data}=await sb.from('live_locations').select('*').gte('updated_at',since);(data||[]).forEach(r=>{if(acceptRemote(r)){REMOTE[r.user_id]=rowToRider(r)}});renderRiders();syncMini();
+ if(!chan)chan=sb.channel('live').on('postgres_changes',{event:'*',schema:'public',table:'live_locations'},pl=>{const r=pl.new;if(pl.eventType==='DELETE'||!r||!acceptRemote(r)){const id=(pl.old||{}).user_id;if(id){delete REMOTE[id];removeRider(id)}return}REMOTE[r.user_id]=rowToRider(r);placeRider(REMOTE[r.user_id]);syncMini()}).subscribe()}
+async function loadProfileFromDb(){if(!canSync())return;const {data}=await sb.from('profiles').select('*').eq('id',session.user.id).maybeSingle();
+ if(data){me=Object.assign(me,{id:data.id,name:data.name||me.name,handle:data.handle||me.handle,gender:data.gender||me.gender,bio:data.bio||'',genres:data.genres||[],group:data.grp||'',privacy:{vis:data.vis||'group',radius:data.radius||.8}});saveMe();refreshMyIcon()}else syncProfile()}
+
+/* ============================ auth ============================ */
+function setAuthUI(){$('#navLogin').textContent=loggedIn()?'🚪 Sign out':'🔑 Login / Signup'}
+async function afterLogin(){me.id=session?session.user.id:'local';saveMe();setAuthUI();refreshMyIcon();await loadProfileFromDb();flushQueue();loadRemote()}
+$('#btnSignup').onclick=async()=>{
+ const email=$('#email').value.trim(),pw=$('#pass').value,gender=$('#gender').value;
+ if(!/^\S+@\S+\.\S+$/.test(email))return toast('Enter a valid email');if(pw.length<6)return toast('Password needs 6+ characters');
+ me.gender=gender;me.email=email;saveMe();
+ if(sb){if(!online())return toast('Connect to sign up');const {data,error}=await sb.auth.signUp({email,password:pw,options:{data:{gender}}});if(error)return toast(error.message,4000);
+  if(data.session){session=data.session;await afterLogin();hideModal('authWrap');toast('Welcome to Pedalz!')}else{$('#authNote').textContent='Check your email to confirm, then log in.'}}
+ else{const users=LS.get('users',{});users[email]={h:await sha(pw),gender};LS.set('users',users);LS.set('localAuth',email);me.id='local';saveMe();setAuthUI();refreshMyIcon();hideModal('authWrap');toast('Signed up (local demo — add Supabase keys in config.js)',3500)}};
+$('#btnLogin').onclick=async()=>{
+ const email=$('#email').value.trim(),pw=$('#pass').value;if(!email||!pw)return toast('Enter email and password');
+ if(sb){if(!online())return toast('Connect to log in');const {data,error}=await sb.auth.signInWithPassword({email,password:pw});if(error)return toast(error.message,4000);session=data.session;await afterLogin();hideModal('authWrap');toast('Logged in')}
+ else{const u=LS.get('users',{})[email];if(!u||u.h!==await sha(pw))return toast('No matching local account — sign up first');LS.set('localAuth',email);me.gender=u.gender;me.email=email;saveMe();setAuthUI();refreshMyIcon();hideModal('authWrap');toast('Logged in (local demo)')}};
+async function signOut(){if(sb&&session)await sb.auth.signOut();session=null;LS.set('localAuth',false);me=Object.assign({},DEF_ME);saveMe();setAuthUI();refreshMyIcon();toast('Signed out')}
+
+/* PIN lock + biometric stub */
+let pinBuf='';
+function buildKeypad(){const k=$('#keypad');k.innerHTML='';['1','2','3','4','5','6','7','8','9','','0','⌫'].forEach(x=>{const b=document.createElement('button');b.textContent=x;if(!x)b.style.visibility='hidden';b.onclick=()=>pinKey(x);k.appendChild(b)})}
+function pinDots(){$$('#pinDots i').forEach((d,i)=>d.classList.toggle('f',i<pinBuf.length))}
+async function pinKey(x){if(x==='⌫')pinBuf=pinBuf.slice(0,-1);else if(pinBuf.length<4)pinBuf+=x;pinDots();
+ if(pinBuf.length===4){const ok=(await sha('pz-pin:'+pinBuf))===LS.get('pin',null);if(ok){$('#lock').classList.add('hidden');pinBuf='';pinDots()}else{$('#lockMsg').textContent='Wrong PIN — try again';pinBuf='';setTimeout(pinDots,150)}}}
+$('#bioBtn').onclick=async()=>{ // stub: real WebAuthn registration/assertion needs a server challenge
+ if(!window.PublicKeyCredential)return toast('Biometrics not supported here');toast('Biometric unlock is a stub — use your PIN')};
+function maybeLock(){if(LS.get('pin',null)){buildKeypad();$('#lock').classList.remove('hidden')}}
+
+/* ============================ camera / recording / playback ============================ */
+const CAM={stream:null,rec:null,chunks:[],tele:[],t0:0,timer:null,live:false,mini:null,mbase:null,mmark:null};
+function pickMime(){const c=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm','video/mp4'];return c.find(t=>window.MediaRecorder&&MediaRecorder.isTypeSupported(t))||''}
+async function openCamera(live){
+ if(!navigator.mediaDevices||!window.MediaRecorder)return toast('Recording not supported on this browser');
+ try{CAM.stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1280},height:{ideal:720}},audio:true})}catch{return toast('Camera/mic permission needed')}
+ hideModal('profileWrap');hideModal('pageWrap');
+ $('#camVid').srcObject=CAM.stream;$('#camView').classList.remove('hidden');$('#camGauges').innerHTML=gaugeHTML('cg');applyGaugePos();GEO.start();
+ if(!CAM.mini){CAM.mini=L.map('camMini',{attributionControl:false,zoomControl:false,dragging:false});CAM.mbase=makeBase(CAM.mini,false);CAM.mbase.set(resolveTheme())}
+ setTimeout(()=>{CAM.mini.invalidateSize();CAM.mini.setView(myPos?[myPos.lat,myPos.lng]:map.getCenter(),15)},200);
+ CAM.camTick=setInterval(()=>{if(myPos){if(!CAM.mmark)CAM.mmark=L.circleMarker([myPos.lat,myPos.lng],{radius:6,color:'#22d3ee',fillOpacity:.9}).addTo(CAM.mini);else CAM.mmark.setLatLng([myPos.lat,myPos.lng]);CAM.mini.setView([myPos.lat,myPos.lng],15,{animate:false})}tickUI()},1000);
+ if(live)goLive()}
+function goLive(){LIVEFLAG=true;CAM.live=true;$('#camLive').classList.remove('hidden');$('#camGoLive').textContent='End Live';maybeBroadcast(GEO.last||{lat:0,lng:0});toast('Live flag on — viewers see LIVE on your marker. (Video streaming needs a media server; see README.)',4500)}
+function endLive(){LIVEFLAG=false;CAM.live=false;$('#camLive').classList.add('hidden');$('#camGoLive').textContent='Go Live'}
+function startRec(){
+ const mime=pickMime();CAM.chunks=[];CAM.tele=[];CAM.t0=Date.now();
+ try{CAM.rec=new MediaRecorder(CAM.stream,mime?{mimeType:mime,videoBitsPerSecond:2500000}:undefined)}catch{return toast('Recording failed to start')}
+ CAM.rec.ondataavailable=e=>{if(e.data&&e.data.size)CAM.chunks.push(e.data)};
+ CAM.rec.onstop=async()=>{const blob=new Blob(CAM.chunks,{type:CAM.rec.mimeType||'video/webm'});const dur=(Date.now()-CAM.t0)/1000;
+  await DB.put({id:uid(),uid:me.id,kind:'video',blob,ts:Date.now(),dur,tele:CAM.tele});toast('Video saved to your gallery');};
+ CAM.rec.start(1000);$('#camRecInd').classList.remove('hidden');$('#camRec').textContent='■ Stop';
+ CAM.teleTimer=setInterval(()=>{const t=(Date.now()-CAM.t0)/1000;$('#camTimer').textContent=fmtTime(t);CAM.tele.push({t:+t.toFixed(1),spd:U.spd(LIVE.spd),dist:U.dist(R.distM),elev:U.elev(LIVE.elev),hr:LIVE.hr});if(t>=600)stopRec()},500)}
+function stopRec(){if(CAM.rec&&CAM.rec.state!=='inactive')CAM.rec.stop();clearInterval(CAM.teleTimer);$('#camRecInd').classList.add('hidden');$('#camRec').textContent='● Record'}
+function closeCamera(){stopRec();endLive();clearInterval(CAM.camTick);if(CAM.stream)CAM.stream.getTracks().forEach(t=>t.stop());CAM.stream=null;$('#camView').classList.add('hidden');GEO.stop()}
+$('#camRec').onclick=()=>CAM.rec&&CAM.rec.state==='recording'?stopRec():startRec();
+$('#camGoLive').onclick=()=>CAM.live?endLive():goLive();
+$('#camClose').onclick=closeCamera;
+
+let mediaURL=null;
+function openMedia(m){
+ const host=$('#mediaHost');host.innerHTML='';if(mediaURL)URL.revokeObjectURL(mediaURL);mediaURL=URL.createObjectURL(m.blob);
+ if(m.kind==='image'){host.innerHTML=`<img class="fimg" alt="photo"/>`;host.firstChild.src=mediaURL;$('#playGauges').classList.add('hidden')}
+ else{const v=document.createElement('video');v.src=mediaURL;v.controls=true;v.autoplay=true;v.playsInline=true;v.style.cssText='width:100%;height:100%;object-fit:contain';host.appendChild(v);
+  const pg=$('#playGauges');if(m.tele&&m.tele.length){pg.innerHTML=gaugeHTML('pg');pg.classList.remove('hidden');applyGaugePos();
+   v.ontimeupdate=()=>{let s=m.tele[0];for(const x of m.tele){if(x.t<=v.currentTime)s=x;else break}setGauges('pg',{t:v.currentTime,spd:s.spd,dist:s.dist,elev:s.elev,hr:s.hr})}}else pg.classList.add('hidden')}
+ $('#mediaView').classList.remove('hidden');
+ const rq=$('#mediaView').requestFullscreen;if(rq)$('#mediaView').requestFullscreen().catch(()=>{})}
+$('#mediaClose').onclick=()=>{$('#mediaView').classList.add('hidden');$('#mediaHost').innerHTML='';if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});if(mediaURL){URL.revokeObjectURL(mediaURL);mediaURL=null}};
+
+/* ============================ shop / causes / feed data ============================ */
+const DEMO_LISTINGS=DEMO.flatMap(d=>d.gear.map((g,i)=>({id:`${d.id}-g${i}`,user_id:d.id,seller:d.name,title:g.t,price:g.p,cond:g.cond,scope:'public',grp:'',img:null,ts:Date.now()-i*86400000})));
+const DEMO_CAUSES=[{id:'c1',user_id:'dA',organizer:'Alex',title:'Ride for Reading',descr:'20-mile charity ride supporting school libraries.',date:new Date(Date.now()+9*86400000).toISOString().slice(0,10),scope:'public',grp:'',members:['dA','dB'],ts:Date.now()-86400000}];
+const myListings=()=>LS.get('listings',[]),myCauses=()=>LS.get('causes',[]);
+let remoteListings=[],remoteCauses=[];
+const visible=x=>x.scope==='public'||x.user_id===me.id||(x.scope==='group'&&x.grp&&x.grp===me.group);
+async function loadShop(){if(!canSync())return;const a=await sb.from('listings').select('*').order('created_at',{ascending:false}).limit(100);if(a.data)remoteListings=a.data.map(r=>({id:r.id,user_id:r.user_id,seller:r.seller_name,title:r.title,price:r.price,cond:r.cond,scope:r.scope,grp:r.grp||'',img:r.img,ts:Date.parse(r.created_at)}));
+ const b=await sb.from('causes').select('*, cause_members(user_id)').order('created_at',{ascending:false}).limit(100);if(b.data)remoteCauses=b.data.map(r=>({id:r.id,user_id:r.user_id,organizer:r.organizer,title:r.title,descr:r.descr,date:r.date,scope:r.scope,grp:r.grp||'',members:(r.cause_members||[]).map(m=>m.user_id),ts:Date.parse(r.created_at)}))}
+const mergeById=a=>{const m=new Map();a.forEach(x=>m.set(x.id,x));return[...m.values()]};
+const allListings=()=>mergeById([...DEMO_LISTINGS,...remoteListings,...myListings()]).filter(visible).sort((a,b)=>b.ts-a.ts);
+const allCauses=()=>mergeById([...DEMO_CAUSES,...remoteCauses,...myCauses()]).filter(visible).sort((a,b)=>b.ts-a.ts);
+function listingCard(x,own){return `<div class="item"><span class="sc">${x.scope==='group'?'Group':'Public'}</span>${x.img?`<img loading="lazy" alt="${esc(x.title)}" src="${esc(x.img)}"/>`:`<div class="ph">🚲</div>`}<div class="bd"><div class="b">${esc(x.title)}</div><div class="row between sm"><span>$${esc(x.price)}</span><span class="muted">${esc(x.cond||'')}</span></div>${own?`<button class="btn danger sm mt1" data-dellist="${esc(x.id)}">Remove</button>`:`<button class="btn alt sm mt1" data-seller="${esc(x.user_id)}">by ${esc(x.seller||'Rider')}</button>`}</div></div>`}
+function gearFormHTML(){return `<div class="box mt1"><div class="b mb1">List an item</div><div style="display:grid;gap:.5rem"><input id="gTitle" class="in" placeholder="Item name"/><div class="grid2"><input id="gPrice" class="in" type="number" min="0" step="1" placeholder="Price $"/><select id="gCond" class="in"><option>New</option><option>Like New</option><option selected>Good</option><option>Fair</option></select></div><select id="gScope" class="in"><option value="public">List publicly (everyone)</option><option value="group">List in my group only</option></select><input id="gImg" type="file" accept="image/*" class="in"/><button id="gAdd" class="btn">Add listing</button></div></div>`}
+async function addListing(root){
+ if(!loggedIn()){toast('Log in to list items');showModal('authWrap');return}
+ const title=root.querySelector('#gTitle').value.trim(),price=+root.querySelector('#gPrice').value,scope=root.querySelector('#gScope').value;
+ if(!title||!(price>=0))return toast('Add a name and price');if(scope==='group'&&!me.group)return toast('Set a group code in your profile settings first');
+ const f=root.querySelector('#gImg').files[0];const img=f?await resizeImage(f):null;
+ const it={id:uid(),user_id:me.id,seller:me.name,title,price,cond:root.querySelector('#gCond').value,scope,grp:me.group||'',img,ts:Date.now()};
+ const l=myListings();l.unshift(it);LS.set('listings',l);dbWrite('listings',{id:it.id,user_id:session&&session.user.id,seller_name:me.name,title,price,cond:it.cond,scope,grp:me.group||null,img});toast('Listed in Gear Shop');return true}
+function bindListingActions(root,rerender){root.querySelectorAll('[data-dellist]').forEach(b=>b.onclick=()=>{LS.set('listings',myListings().filter(x=>x.id!==b.dataset.dellist));if(canSync())sb.from('listings').delete().eq('id',b.dataset.dellist).then(()=>{},()=>{});rerender()});
+ root.querySelectorAll('[data-seller]').forEach(b=>b.onclick=()=>{hideModal('pageWrap');openProfile(b.dataset.seller)});
+ const add=root.querySelector('#gAdd');if(add)add.onclick=async()=>{if(await addListing(root))rerender()}}
+
+/* ============================ pages ============================ */
+function openPage(key){
+ const T=$('#pageTitle'),B=$('#pageBody');
+ const set=(t,h)=>{T.textContent=t;B.innerHTML=h;showModal('pageWrap')};
+ if(key==='ride'){set('Ride',`<p>Tap <b>Start</b> on the map to record time, distance, speed, elevation and heart rate. Tap the route icon on the distance gauge for turn-by-turn directions. Switch bike / walk / run and units in <b>Tools</b>.</p><div class="box">Gauge position: <select id="gpos" class="in" style="width:auto"><option value="right">Right</option><option value="left">Left</option><option value="center">Center</option></select></div><div class="row mt1 wrap"><button class="btn" id="goStart">Start a ride</button><button class="btn alt" id="goRec">Record video</button></div>`);
+  $('#gpos').value=ST.gauge;$('#gpos').onchange=e=>{ST.gauge=e.target.value;saveST();applyGaugePos()};$('#goStart').onclick=()=>{hideModal('pageWrap');startRide()};$('#goRec').onclick=()=>openCamera(false);return}
+ if(key==='meet'){const rs=allRiders().filter(r=>r.vis!=='off');set('Meet riders nearby',rs.map(r=>`<div class="listRow">${avatarHTML(r.gender,r.mode)}<div class="grow"><div class="b">${esc(r.name)}</div><div class="xs muted">@${esc(r.handle)}${isDemo(r.id)?' • demo rider':''}${r.live?' • <b style="color:#f87171">LIVE</b>':''}</div></div><button class="btn sm" data-v="${esc(r.id)}">View</button></div>`).join('')||'<p class="muted">No riders visible right now.</p>');B.querySelectorAll('[data-v]').forEach(b=>b.onclick=()=>{hideModal('pageWrap');openProfile(b.dataset.v)});return}
+ if(key==='shop'){const draw=()=>{const q=(B.querySelector('#shopQ')||{}).value||'';const items=allListings().filter(x=>!q||x.title.toLowerCase().includes(q.toLowerCase()));
+   B.innerHTML=`<input id="shopQ" class="in" placeholder="Search gear…" value="${esc(q)}"/><div class="xs muted mt1">${items.length} item(s) • public listings plus your group's${me.group?` (${esc(me.group)})`:''}</div><div class="grid3 mt1">${items.map(x=>listingCard(x,x.user_id===me.id)).join('')||'<p class="muted">No listings yet.</p>'}</div>${gearFormHTML()}`;
+   B.querySelector('#shopQ').oninput=()=>{const p=B.querySelector('#shopQ').selectionStart;draw();const e=B.querySelector('#shopQ');e.focus();e.setSelectionRange(p,p)};bindListingActions(B,draw)};
+  T.textContent='Gear Shop';showModal('pageWrap');loadShop().then(()=>{if($('#pageTitle').textContent==='Gear Shop')draw()});return draw()}
+ if(key==='causes'){const draw=()=>{const cs=allCauses();
+   B.innerHTML=`<div class="xs muted">Organize charity or cause-based rides for everyone or your group.</div>${cs.map(c=>`<div class="box mt1"><div class="row between"><div class="b">${esc(c.title)}</div><span class="chip">${c.scope==='group'?'Group':'Public'}</span></div><div class="sm">${esc(c.descr)}</div><div class="xs muted mt1">📅 ${esc(c.date)} • by ${esc(c.organizer)} • ${c.members.length} joined</div><button class="btn sm mt1" data-join="${esc(c.id)}">${c.members.includes(me.id)?'Leave':'Join'}</button>${c.user_id===me.id?`<button class="btn danger sm mt1" data-delc="${esc(c.id)}">Delete</button>`:''}</div>`).join('')||'<p class="muted">No causes yet.</p>'}
+   <div class="box mt2"><div class="b mb1">Create a cause ride</div><div style="display:grid;gap:.5rem"><input id="cTitle" class="in" placeholder="Title"/><textarea id="cDesc" class="in" rows="2" placeholder="What is it for?"></textarea><div class="grid2"><input id="cDate" class="in" type="date"/><select id="cScope" class="in"><option value="public">Public</option><option value="group">My group only</option></select></div><button id="cAdd" class="btn">Create</button></div></div>`;
+   B.querySelectorAll('[data-join]').forEach(b=>b.onclick=()=>{if(!loggedIn()){toast('Log in to join');return showModal('authWrap')}joinCause(b.dataset.join);draw()});
+   B.querySelectorAll('[data-delc]').forEach(b=>b.onclick=()=>{LS.set('causes',myCauses().filter(x=>x.id!==b.dataset.delc));if(canSync())sb.from('causes').delete().eq('id',b.dataset.delc).then(()=>{},()=>{});draw()});
+   B.querySelector('#cAdd').onclick=()=>{if(!loggedIn()){toast('Log in to create');return showModal('authWrap')}const title=B.querySelector('#cTitle').value.trim(),date=B.querySelector('#cDate').value,scope=B.querySelector('#cScope').value;if(!title||!date)return toast('Add a title and date');if(scope==='group'&&!me.group)return toast('Set a group code in your profile settings first');
+    const c={id:uid(),user_id:me.id,organizer:me.name,title,descr:B.querySelector('#cDesc').value.trim(),date,scope,grp:me.group||'',members:[me.id],ts:Date.now()};const l=myCauses();l.unshift(c);LS.set('causes',l);
+    dbWrite('causes',{id:c.id,user_id:session&&session.user.id,organizer:me.name,title,descr:c.descr,date,scope,grp:me.group||null});dbWrite('cause_members',{cause_id:c.id,user_id:session&&session.user.id});toast('Cause created');draw()}};
+  T.textContent='Causes';showModal('pageWrap');loadShop().then(()=>{if($('#pageTitle').textContent==='Causes')draw()});return draw()}
+ if(key==='feed'){const posts=[];(LS.get('rides',[])).slice(0,15).forEach(r=>posts.push({ts:r.ts,h:`🚴 <b>You</b> completed a ${U.dist(r.distM).toFixed(1)} ${U.distL()} ${esc(r.mode)} in ${fmtTime(r.dur)}`}));
+  allCauses().slice(0,10).forEach(c=>posts.push({ts:c.ts,h:`🎗️ <b>${esc(c.organizer)}</b> started a cause ride: ${esc(c.title)}`}));allListings().slice(0,10).forEach(l=>posts.push({ts:l.ts,h:`🛒 <b>${esc(l.seller)}</b> listed ${esc(l.title)} for $${esc(l.price)}`}));
+  posts.sort((a,b)=>b.ts-a.ts);return set('Feed',posts.map(p=>`<div class="box mt1">${p.h}<div class="xs muted">${new Date(p.ts).toLocaleString()}</div></div>`).join('')||'<p class="muted">Rides, causes and gear posts will show up here.</p>')}
+ if(key==='gov')return set('Gov & Safety',`<div class="box"><div class="b">Ride safely</div><ul class="sm" style="padding-left:1.1rem"><li>Wear a helmet and use lights from dusk to dawn.</li><li>Obey traffic signals and signal your turns.</li><li>Check local rules for bike lanes, e-bikes and trail etiquette.</li></ul></div><div class="box mt1"><div class="b">Local resources</div><p class="sm muted">Find your city or county cycling program, trail maps and safety courses. Regional content can be managed from Supabase and shown here in a later update.</p></div><div class="box mt1"><div class="b">Emergency</div><p class="sm">In an emergency call your local emergency number.</p></div>`)}
+function joinCause(id){let c=myCauses().find(x=>x.id===id);const all=[...DEMO_CAUSES,...remoteCauses,...myCauses()].find(x=>x.id===id);if(!all)return;
+ const has=all.members.includes(me.id);all.members=has?all.members.filter(m=>m!==me.id):[...all.members,me.id];
+ if(!c){const l=myCauses();l.unshift(Object.assign({},all));LS.set('causes',l)}else{LS.set('causes',myCauses().map(x=>x.id===id?all:x))}
+ if(canSync()){if(has)sb.from('cause_members').delete().eq('cause_id',id).eq('user_id',session.user.id).then(()=>{},()=>{});else dbWrite('cause_members',{cause_id:id,user_id:session.user.id})}}
+
+/* ============================ profile ============================ */
+const ALL_GENRES=['Racing','Touring','MTB','BMX','Freestyle','Cruising','Road','Commuting','E-Bike'];
+const stars='<svg viewBox="0 0 24 24"><path d="M12 3l2.4 4.9 5.4.8-3.9 3.8.9 5.4L12 15.9 6.9 18l.9-5.4L4 8.7l5.4-.8z"/></svg>';
+let weekChart=null;
+function myStats(){const r=LS.get('rides',[]);const m=r.reduce((a,x)=>a+x.distM,0),t=r.reduce((a,x)=>a+x.dur,0);return{rides:r.length,dist:m,avg:t?m/t:0,gain:r.reduce((a,x)=>a+x.gainM,0)}}
+async function openProfile(id){
+ const own=id==='me'||id===me.id;const body=$('#profileBody');
+ let p;
+ if(own)p={id:me.id,name:me.name,handle:me.handle,gender:me.gender,mode:ST.mode,bio:me.bio,genres:me.genres,own:true};
+ else{p=allRiders().find(r=>r.id===id);
+  if(!p&&canSync()){const {data}=await sb.from('profiles').select('*').eq('id',id).maybeSingle();if(data)p={id,name:data.name,handle:data.handle,gender:data.gender,mode:'bike',bio:data.bio,genres:data.genres||[]}}
+  if(!p)return toast('Profile unavailable')}
+ const media=await DB.all(own?me.id:p.id);
+ const lst=allListings().filter(x=>x.user_id===p.id);
+ let html=`<div class="row"><div id="pAv" ${own?'style="cursor:pointer"':''}>${avatarHTML(p.gender,p.mode)}</div><div class="grow"><div class="row"><span class="xl b">${esc(p.name)}</span><span class="badge">Verified</span></div><div class="sm muted">@${esc(p.handle)}${own?' • you':''}</div>${p.rating?`<div class="sm mt1 rating">${stars} ${p.rating.toFixed(1)} • <b>${p.followers}</b> Followers • <b>${p.following}</b> Following</div>`:''}</div>${own?'<button class="btn alt sm" id="pEdit">Edit</button>':''}</div>`;
+ if(p.bio)html+=`<p class="sm mt1">${esc(p.bio)}</p>`;
+ const st=own?myStats():{rides:p.rides||0,dist:(p.miles||0)*1609.344,avg:(p.avg||0)/2.23694,gain:(p.elev||0)/3.28084};
+ html+=`<div class="grid4 mt2"><div class="box"><div class="xs muted">Rides</div><div class="b lg">${st.rides}</div></div><div class="box"><div class="xs muted">${U.distL()}</div><div class="b lg">${U.dist(st.dist).toFixed(1)}</div></div><div class="box"><div class="xs muted">Avg ${U.spdL()}</div><div class="b lg">${U.spd(st.avg).toFixed(1)}</div></div><div class="box"><div class="xs muted">Elev ${U.elevL()}</div><div class="b lg">${Math.round(U.elev(st.gain))}</div></div></div>`;
+ const gen=own?ALL_GENRES:(p.genres||[]);
+ if(own||gen.length)html+=`<div class="mt2"><div class="b mb1">Genres</div><div class="row wrap" id="genres">${gen.map(g=>`<span class="chip ${(p.genres||[]).includes(g)?'on':''}" ${own?'role="button" tabindex="0"':''} data-g="${esc(g)}">${esc(g)}</span>`).join('')}</div></div>`;
+ html+=`<div class="mt2"><div class="row between wrap"><div class="b">Gallery</div>${own?`<div class="row wrap"><button class="btn sm" id="addPhoto">Add Photos</button><button class="btn sm" id="addVideo">Upload Video</button><button class="btn sm" id="recVideo">● Record</button><button class="btn sm" id="goLive">Go Live</button></div>`:''}</div>${own?'<input id="fPhoto" type="file" accept="image/*" multiple class="hidden"/><input id="fVideo" type="file" accept="video/*" class="hidden"/>':''}<div class="gal mt1" id="gal">${media.length?'':'<span class="xs muted">No media yet.</span>'}</div></div>`;
+ if(own){const rides=LS.get('rides',[]);html+=`<div class="mt2"><div class="b mb1">Ride archive</div>${rides.slice(0,8).map(r=>`<div class="listRow" data-ride="${esc(r.id)}" style="cursor:pointer"><div class="grow"><div class="b sm">${new Date(r.ts).toLocaleDateString()} • ${MODE_ICON[r.mode]||'🚴'}</div><div class="xs muted">${U.dist(r.distM).toFixed(2)} ${U.distL()} • ${fmtTime(r.dur)} • ${U.spd(r.avgMs).toFixed(1)} ${U.spdL()}</div></div><span class="muted">›</span></div>`).join('')||'<span class="xs muted">Finish a ride to see it here.</span>'}${rides.length?'<div class="box mt1"><canvas id="weekChart" height="110"></canvas></div>':''}</div>`}
+ else{const n=(isDemo(p.id)?p.rides:0);if(n)html+=`<div class="mt2 xs muted">${n} rides archived</div>`}
+ html+=`<div class="mt2"><div class="b mb1">Gear listings</div><div class="grid3" id="pGear">${lst.map(x=>listingCard(x,own&&x.user_id===me.id)).join('')||'<span class="xs muted">No items listed.</span>'}</div>${own?gearFormHTML():''}</div>`;
+ if(own)html+=`<details class="box mt2"><summary>Settings &amp; privacy</summary><div style="display:grid;gap:.6rem;margin-top:.6rem">
+  <label class="xs muted">Location visibility<select id="sVis" class="in"><option value="off">Off (hidden)</option><option value="friends">Friends (precise)</option><option value="group">Group (precise)</option><option value="public">Everyone (approx. radius)</option></select></label>
+  <label class="xs muted" id="radRow">Approx radius (miles)<input id="sRad" class="in" type="number" step="0.05" min="0.1" max="5"/></label>
+  <label class="xs muted">Group code (share with friends to sync group items)<input id="sGrp" class="in" maxlength="24" placeholder="e.g. MIAMI-CREW"/></label>
+  <label class="xs muted">Gauge position<select id="sGauge" class="in"><option value="right">Right</option><option value="left">Left</option><option value="center">Center</option></select></label>
+  <label class="xs muted">Helmet color<select id="sGender" class="in"><option value="x">Opt-out (Green)</option><option value="m">Male (Blue)</option><option value="f">Female (Pink)</option></select></label>
+  <label class="xs muted">4-digit PIN lock<div class="row"><input id="sPin" class="in" type="password" inputmode="numeric" maxlength="4" placeholder="${LS.get('pin',null)?'PIN set — enter new to change':'Set a PIN'}"/><button class="btn sm" id="sPinSave">Save</button>${LS.get('pin',null)?'<button class="btn alt sm" id="sPinClear">Remove</button>':''}</div></label>
+  <div class="row wrap"><button class="btn" id="sSave">Save settings</button><button class="btn alt" id="sOut">${loggedIn()?'Sign out':'Log in'}</button></div></div></details>`;
+ body.innerHTML=html;showModal('profileWrap');
+ // gallery
+ const gal=$('#gal');
+ media.forEach(m=>{const th=document.createElement('div');th.className='th';const u=URL.createObjectURL(m.blob);
+  th.innerHTML=m.kind==='image'?`<img alt="photo" loading="lazy"/>`:`<video muted playsinline preload="metadata"></video><span class="tg">▶ ${fmtTime(m.dur||0)}</span>`;th.firstChild.src=u;th.onclick=e=>{if(e.target.classList.contains('del'))return;openMedia(m)};
+  if(own){const d=document.createElement('span');d.className='del';d.textContent='✕';d.onclick=async()=>{await DB.del(m.id);openProfile('me')};th.appendChild(d)}gal.appendChild(th)});
+ if(!own){body.querySelectorAll('[data-seller]').forEach(b=>b.remove());return}
+ // owner wiring
+ $('#pEdit').onclick=()=>editProfile();
+ $('#pAv').onclick=()=>editProfile();
+ body.querySelectorAll('#genres .chip').forEach(c=>c.onclick=()=>{const g=c.dataset.g;me.genres=me.genres.includes(g)?me.genres.filter(x=>x!==g):[...me.genres,g];saveMe();c.classList.toggle('on');syncProfile()});
+ $('#addPhoto').onclick=()=>$('#fPhoto').click();$('#addVideo').onclick=()=>$('#fVideo').click();
+ $('#fPhoto').onchange=async e=>{for(const f of [...e.target.files].slice(0,20)){const d=await resizeImage(f,1600,.8);if(!d)continue;const b=await (await fetch(d)).blob();await DB.put({id:uid(),uid:me.id,kind:'image',blob:b,ts:Date.now()})}openProfile('me')};
+ $('#fVideo').onchange=async e=>{const f=e.target.files[0];if(!f)return;if(f.size>150*1024*1024)return toast('Video too large (150 MB max)');await DB.put({id:uid(),uid:me.id,kind:'video',blob:f,ts:Date.now(),dur:0});openProfile('me')};
+ $('#recVideo').onclick=()=>openCamera(false);$('#goLive').onclick=()=>openCamera(true);
+ body.querySelectorAll('[data-ride]').forEach(r=>r.onclick=()=>{const x=LS.get('rides',[]).find(q=>q.id===r.dataset.ride);if(x)showSummary(x)});
+ const wc=$('#weekChart');if(wc&&window.Chart){if(weekChart)weekChart.destroy();const rs=LS.get('rides',[]).slice(0,7).reverse();weekChart=new Chart(wc,{type:'bar',data:{labels:rs.map(r=>new Date(r.ts).toLocaleDateString([],{month:'short',day:'numeric'})),datasets:[{label:`Distance (${U.distL()})`,data:rs.map(r=>+U.dist(r.distM).toFixed(2)),backgroundColor:'#38bdf8'}]},options:{plugins:{legend:{labels:{color:'#cbd5e1'}}},scales:{x:{ticks:{color:'#9fb3c8'}},y:{ticks:{color:'#9fb3c8'},grid:{color:'rgba(255,255,255,.07)'}}}}})}
+ bindListingActions(body,()=>openProfile('me'));
+ $('#sVis').value=me.privacy.vis;$('#sRad').value=me.privacy.radius;$('#sGrp').value=me.group||'';$('#sGauge').value=ST.gauge;$('#sGender').value=me.gender;
+ const radVis=()=>$('#radRow').classList.toggle('hidden',$('#sVis').value!=='public');radVis();$('#sVis').onchange=radVis;
+ $('#sSave').onclick=()=>{me.privacy={vis:$('#sVis').value,radius:clamp(parseFloat($('#sRad').value)||.8,.1,5)};me.group=$('#sGrp').value.trim().toUpperCase();me.gender=$('#sGender').value;ST.gauge=$('#sGauge').value;saveMe();saveST();applyGaugePos();refreshMyIcon();syncProfile();if(me.privacy.vis==='off'&&canSync())sb.from('live_locations').delete().eq('user_id',session.user.id).then(()=>{},()=>{});toast('Settings saved')};
+ $('#sPinSave').onclick=async()=>{const v=$('#sPin').value;if(!/^\d{4}$/.test(v))return toast('PIN must be 4 digits');LS.set('pin',await sha('pz-pin:'+v));toast('PIN saved');openProfile('me')};
+ const pc=$('#sPinClear');if(pc)pc.onclick=()=>{LS.set('pin',null);toast('PIN removed');openProfile('me')};
+ $('#sOut').onclick=async()=>{if(loggedIn()){await signOut();hideModal('profileWrap')}else{hideModal('profileWrap');showModal('authWrap')}}}
+function editProfile(){const b=$('#profileBody');b.innerHTML=`<h3>Edit profile</h3><div style="display:grid;gap:.6rem"><label class="xs muted">Name<input id="eName" class="in" maxlength="40" value="${esc(me.name)}"/></label><label class="xs muted">Handle<input id="eHandle" class="in" maxlength="24" value="${esc(me.handle)}"/></label><label class="xs muted">Bio<textarea id="eBio" class="in" rows="3" maxlength="240">${esc(me.bio)}</textarea></label><div class="row"><button class="btn grow" id="eSave">Save</button><button class="btn alt grow" id="eCancel">Cancel</button></div></div>`;
+ $('#eCancel').onclick=()=>openProfile('me');$('#eSave').onclick=()=>{me.name=$('#eName').value.trim()||'You';me.handle=($('#eHandle').value.trim()||'pedalz_user').replace(/[^\w.]/g,'_');me.bio=$('#eBio').value.trim();saveMe();syncProfile();openProfile('me')}}
+
+/* ============================ group / follow ============================ */
+function openGroup(){const l=$('#groupList');const rs=allRiders().filter(r=>r.vis!=='off');
+ l.innerHTML=rs.map(r=>{const d=myPos?distM([myPos.lat,myPos.lng],[r.lat,r.lng])/1609.344:null;return `<div class="listRow">${avatarHTML(r.gender,r.mode)}<div class="grow"><div class="b">${esc(r.name)}</div><div class="xs muted">${d!=null?U.dist(d*1609.344).toFixed(1)+' '+U.distL()+' away':esc(r.handle)}</div></div><button class="btn sm" data-view="${esc(r.id)}">View</button><button class="btn alt sm" data-fol="${esc(r.id)}">Follow</button></div>`}).join('')||'<p class="muted">No riders visible.</p>';
+ l.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{hideModal('groupWrap');openProfile(b.dataset.view)});l.querySelectorAll('[data-fol]').forEach(b=>b.onclick=()=>{setFollow(b.dataset.fol);hideModal('groupWrap')});showModal('groupWrap')}
+function setFollow(id){followId=id;const r=allRiders().find(x=>x.id===id);$('#stFollow').textContent=r?r.name:'';toast(r?`Following ${r.name}`:'Stopped following');if(r)map.panTo([r.lat,r.lng])}
+function openFollow(){const l=$('#followList');l.innerHTML=allRiders().filter(r=>r.vis!=='off').map(r=>`<button class="menuItem" data-f="${esc(r.id)}">${esc(r.name)}</button>`).join('')+`<button class="menuItem" data-f="">Stop following</button>`;l.querySelectorAll('[data-f]').forEach(b=>b.onclick=()=>{setFollow(b.dataset.f||null);hideModal('followWrap')});showModal('followWrap')}
+
+/* ============================ install (one-touch) ============================ */
+let deferredPrompt=null;const isStandalone=()=>matchMedia('(display-mode: standalone)').matches||navigator.standalone;
+const isIOS=()=>/iphone|ipad|ipod/i.test(navigator.userAgent)&&!window.MSStream;
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;$('#btnInstall').classList.remove('hidden');if(!LS.get('installDismissed',false)&&!isStandalone())$('#installBanner').classList.remove('hidden')});
+window.addEventListener('appinstalled',()=>{deferredPrompt=null;$('#btnInstall').classList.add('hidden');$('#installBanner').classList.add('hidden');toast('Pedalz installed!')});
+async function doInstall(){
+ if(isStandalone())return toast('Already installed');
+ if(deferredPrompt){deferredPrompt.prompt();await deferredPrompt.userChoice;deferredPrompt=null;$('#installBanner').classList.add('hidden');$('#btnInstall').classList.add('hidden')}
+ else if(isIOS()){$('#installMsg').textContent='Tap Share, then “Add to Home Screen”.';$('#installBanner').classList.remove('hidden');$('#installGo').classList.add('hidden')}
+ else toast('Use your browser menu → Install app / Add to Home screen',3500)}
+$('#btnInstall').onclick=doInstall;$('#installGo').onclick=doInstall;$('#installNo').onclick=()=>{$('#installBanner').classList.add('hidden');LS.set('installDismissed',true)};
+if(isIOS()&&!isStandalone()&&!LS.get('installDismissed',false)){setTimeout(()=>{$('#installMsg').textContent='Tap Share, then “Add to Home Screen”.';$('#installGo').classList.add('hidden');$('#installBanner').classList.remove('hidden')},4000)}
+if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(e=>console.warn('SW',e)));
+
+/* ============================ menus ============================ */
+$('#btnRightMenu').onclick=e=>{e.stopPropagation();$('#quickMenu').classList.toggle('show')};
+document.addEventListener('click',e=>{if(!e.target.closest('#quickMenu')&&e.target.id!=='btnRightMenu')$('#quickMenu').classList.remove('show')});
+$('#quickMenu').addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(!b)return;const a=b.dataset.act;$('#quickMenu').classList.remove('show');
+ if(a==='group')openGroup();else if(a==='follow')openFollow();else if(a==='center')centerOnMe();
+ else if(a==='sat')toggleSat();
+ else if(a==='theme'){ST.mapStyle='street';ST.theme=ST.theme==='auto'?'light':ST.theme==='light'?'dark':'auto';saveST();applyTheme()}
+ else if(a==='mode')setMode(MODES[(MODES.indexOf(ST.mode)+1)%3]);
+ else if(a==='units')setUnits(ST.units==='imperial'?'metric':'imperial');
+ else if(a==='dash')openDash();else if(a==='offline')saveOffline();else if(a==='hr')hrToggle();else if(a==='battery')setBattery(!ST.battery);else if(a==='install')doInstall()});
+const openDrawer=()=>{$('#drawer').classList.add('show');$('#drawer').setAttribute('aria-hidden','false')},closeDrawer=()=>{$('#drawer').classList.remove('show');$('#drawer').setAttribute('aria-hidden','true')};
+$('#btnLeftMenu').onclick=openDrawer;$('#drawerClose').onclick=closeDrawer;$('#drawer .backdrop').onclick=closeDrawer;
+$$('#drawer .navItem').forEach(n=>n.onclick=async()=>{const t=n.dataset.open;closeDrawer();
+ if(t==='profile')openProfile('me');else if(t==='login'){if(loggedIn())await signOut();else showModal('authWrap')}else openPage(t)});
+
+/* ============================ boot ============================ */
+function whenLeaflet(cb,n=0){if(window.L)return cb();if(n>100){document.body.insertAdjacentHTML('beforeend','<div class="toast" style="position:fixed;top:80px;left:12px;z-index:9000">Map library failed to load. Check your connection and reload.</div>');return}setTimeout(()=>whenLeaflet(cb,n+1),100)}
+window.addEventListener('load',async()=>{$('#splash').classList.add('ready');await sleep(1100);$('#splash').classList.add('fade');setTimeout(()=>$('#splash').remove(),600)});
+whenLeaflet(async()=>{
+ initMaps();applyTheme();renderRiders();syncMini();schedDemo();applyGaugePos();refreshUnitLabels();
+ $('#stMode').textContent=MODE_ICON[ST.mode]+' '+ST.mode;$('#stUnits').textContent=ST.units==='imperial'?'mi / mph':'km / km/h';$('#stBat').textContent=ST.battery?'on':'off';$('#stHr').textContent='off';$('#stSat').textContent=ST.mapStyle==='sat'?'on':'off';setMode(ST.mode);setUnits(ST.units);
+ if(ST.battery)document.body.classList.add('battery');
+ if(!online())setOffline(true);
+ setInterval(()=>{if(ST.theme==='auto')applyTheme()},10*60*1000);
+ maybeLock();setAuthUI();centerOnMe();
+ if(sb){const {data}=await sb.auth.getSession();session=data.session;if(session)await afterLogin();sb.auth.onAuthStateChange((_e,s)=>{session=s;setAuthUI()});await loadShop()}
+ const act=new URLSearchParams(location.search).get('action');if(act==='start')setTimeout(startRide,800);
+});
+</script>
+</body>
+</html>

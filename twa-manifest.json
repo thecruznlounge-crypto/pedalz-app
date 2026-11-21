@@ -1,0 +1,30 @@
+{
+  "packageId": "app.pedalz.twa",
+  "host": "YOUR-DOMAIN.COM",
+  "name": "Pedalz",
+  "launcherName": "Pedalz",
+  "display": "standalone",
+  "orientation": "default",
+  "themeColor": "#0c1724",
+  "navigationColor": "#0c1724",
+  "backgroundColor": "#0c1724",
+  "enableNotifications": false,
+  "startUrl": "/?source=twa",
+  "iconUrl": "https://YOUR-DOMAIN.COM/assets/pedalz-icon-512.png",
+  "maskableIconUrl": "https://YOUR-DOMAIN.COM/assets/pedalz-icon-maskable-512.png",
+  "webManifestUrl": "https://YOUR-DOMAIN.COM/manifest.json",
+  "fullScopeUrl": "https://YOUR-DOMAIN.COM/",
+  "appVersion": "1.0.0",
+  "appVersionCode": 1,
+  "minSdkVersion": 21,
+  "targetSdkVersion": 35,
+  "signingKey": { "path": "./android.keystore", "alias": "pedalz" },
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "fallbackType": "customtabs",
+  "features": { "locationDelegation": { "enabled": true } },
+  "shortcuts": [
+    { "name": "Start a ride", "short_name": "Start", "url": "/?action=start", "icon": "https://YOUR-DOMAIN.COM/assets/pedalz-icon-192.png" }
+  ]
+}

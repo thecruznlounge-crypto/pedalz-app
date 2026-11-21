@@ -1,0 +1,25 @@
+{
+  "id": "/?source=pwa",
+  "name": "Pedalz — Ride. Connect. Share.",
+  "short_name": "Pedalz",
+  "description": "Track rides, meet riders nearby, join cause rides and trade gear.",
+  "lang": "en-US",
+  "dir": "ltr",
+  "start_url": "./?source=pwa",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#0c1724",
+  "theme_color": "#0c1724",
+  "categories": ["sports", "health", "social"],
+  "icons": [
+    { "src": "assets/pedalz-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "assets/pedalz-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "assets/pedalz-icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "assets/pedalz-logo.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ],
+  "shortcuts": [
+    { "name": "Start a ride", "short_name": "Start", "url": "./?action=start", "icons": [{ "src": "assets/pedalz-icon-192.png", "sizes": "192x192" }] }
+  ]
+}
